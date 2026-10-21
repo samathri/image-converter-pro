@@ -1,0 +1,35 @@
+{
+  "name": "image-converter-pro-web",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Image Converter Pro (web) - Convert, Compress and Download Images",
+  "author": "Samathri",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -n api,web \"node --watch server/index.js\" \"vite\"",
+    "build": "vite build",
+    "start": "node server/index.js",
+    "create-admin": "node server/create-admin.js",
+    "db": "node server/db-tool.js"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@vercel/blob": "^2.8.2",
+    "adm-zip": "^0.5.17",
+    "axios": "^1.17.0",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "pg": "^8.23.1",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "sharp": "^0.35.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.1",
+    "concurrently": "^10.0.3",
+    "vite": "^8.0.12"
+  },
+  "engines": {
+    "node": ">=22.13"
+  }
+}
