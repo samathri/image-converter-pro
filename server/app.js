@@ -10,6 +10,7 @@ import { identify, getAccount, reserveUse, PRO_MAX_IMAGES } from "./quota.js";
 import { authRouter, ensureBootstrapAdmin, loadUser } from "./auth.js";
 import { billingRouter, adminRouter } from "./billing.js";
 import { payhereRouter, payhereNotifyRouter } from "./payhere.js";
+import { paypalRouter } from "./paypal.js";
 import {
   cleanupTemporaryFiles,
   cronRouter,
@@ -83,6 +84,7 @@ app.use("/api/auth", authRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/billing/payhere", payhereRouter);
+app.use("/api/billing/paypal", paypalRouter);
 app.use("/api/billing", billingRouter);
 app.use("/api/admin", adminRouter);
 

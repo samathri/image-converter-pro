@@ -2,6 +2,7 @@ import express from "express";
 import { getSettings, one, query, saveSettings, toIso, transaction } from "./db.js";
 import { requireAdmin, requireUser, getUserById, isPro, publicUser } from "./auth.js";
 import { payhereStatus } from "./payhere.js";
+import { paypalStatus } from "./paypal.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
 import { deleteFiles, downloadUrl, readFile, usingBlob, localFilePath } from "./storage.js";
 
@@ -67,12 +68,15 @@ billingRouter.get("/", async (req, res, next) => {
       [req.user.id]
     );
     const payhere = await payhereStatus(req);
+    const paypal = await paypalStatus();
 
     res.json({
       price: settings.price,
       currency: settings.currency,
       planMonths: PLAN_MONTHS,
       methods: {
+        paypal: paypal.enabled,
+        paypalSandbox: paypal.sandbox,
         payhere: payhere.enabled,
         payhereSandbox: payhere.sandbox,
         bank: Boolean(settings.accountNumber),
@@ -333,7 +337,7 @@ adminRouter.post("/users/:id/revoke", async (req, res, next) => {
 
 adminRouter.get("/settings", async (req, res, next) => {
   try {
-    res.json({ ...(await getSettings()), payhere: await payhereStatus(req) });
+    res.json({ ...(await getSettings()), payhere: await payhereStatus(req), paypal: await paypalStatus() });
   } catch (error) {
     next(error);
   }
@@ -364,7 +368,7 @@ adminRouter.put("/settings", async (req, res, next) => {
       instructions: text("instructions", 1000),
     });
 
-    res.json({ ...saved, payhere: await payhereStatus(req) });
+    res.json({ ...saved, payhere: await payhereStatus(req), paypal: await paypalStatus() });
   } catch (error) {
     next(error);
   }

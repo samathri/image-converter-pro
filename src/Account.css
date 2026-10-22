@@ -525,3 +525,14 @@
     display: none;
   }
 }
+
+/* PayPal's own button colours, so the brand is recognisable */
+.btn-paypal {
+  color: #111;
+  background: #ffc439;
+  box-shadow: 0 16px 34px -14px #ffc439;
+}
+
+.btn-paypal:hover:not(:disabled) {
+  background: #f2b52e;
+}

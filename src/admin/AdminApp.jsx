@@ -7,6 +7,8 @@ import "../Account.css";
 import "./Admin.css";
 
 const PLAN_MONTHS = [1, 3, 6, 12];
+// Online gateways confirm payments themselves; bank transfers need review.
+const GATEWAYS = { payhere: "PayHere", paypal: "PayPal" };
 const SHORT_DATE = { day: "numeric", month: "short", year: "numeric" };
 
 function useTheme() {
@@ -195,11 +197,11 @@ function Overview({ stats, settings, goTo }) {
 function ReceiptThumb({ payment, onOpen }) {
   const url = `/api/admin/payments/${payment.id}/receipt`;
 
-  if (payment.method === "payhere") {
+  if (GATEWAYS[payment.method]) {
     return (
       <div className="receipt-thumb is-card">
         {Icon.card}
-        <strong>PayHere</strong>
+        <strong>{GATEWAYS[payment.method]}</strong>
         <small>{payment.gatewayMethod || "Card"}</small>
       </div>
     );
@@ -262,7 +264,7 @@ function PaymentCard({ payment, settings, onReviewed, onOpenReceipt }) {
             <span>{payment.user.email}</span>
           </div>
   <div className="pill-group">
-            <span className="method-pill">{payment.method === "payhere" ? "Card" : "Bank"}</span>
+            <span className="method-pill">{GATEWAYS[payment.method] || "Bank"}</span>
             <span className={`status-pill status-${payment.status}`}>
               {payment.status}
             </span>
@@ -284,12 +286,12 @@ function PaymentCard({ payment, settings, onReviewed, onOpenReceipt }) {
             <dd>{payment.months} month{payment.months === 1 ? "" : "s"}</dd>
           </div>
           <div>
-            <dt>{payment.method === "payhere" ? "PayHere payment ID" : "Transaction ID"}</dt>
+            <dt>{GATEWAYS[payment.method] ? `${GATEWAYS[payment.method]} payment ID` : "Transaction ID"}</dt>
             <dd className="mono">{payment.transactionRef || "—"}</dd>
           </div>
           <div>
-            <dt>{payment.method === "payhere" ? "Order ID" : "Pay reference"}</dt>
-            <dd className="mono">{payment.method === "payhere" ? payment.orderId : payment.user.payRef}</dd>
+            <dt>{GATEWAYS[payment.method] ? "Order ID" : "Pay reference"}</dt>
+            <dd className="mono">{GATEWAYS[payment.method] ? payment.orderId : payment.user.payRef}</dd>
           </div>
           <div>
             <dt>Paid on</dt>
@@ -310,13 +312,13 @@ function PaymentCard({ payment, settings, onReviewed, onOpenReceipt }) {
           </p>
         )}
 
-        {payment.method === "payhere" ? (
+        {GATEWAYS[payment.method] ? (
           <p className="payment-meta">
             {payment.status === "approved"
-              ? "Paid by card and confirmed by PayHere automatically. No action needed."
+              ? `Paid online and confirmed by ${GATEWAYS[payment.method]} automatically. No action needed.`
               : payment.status === "chargedback"
                 ? "Charged back: the Pro time from this payment was removed."
-                : `PayHere checkout ${payment.status}.`}
+                : `${GATEWAYS[payment.method]} checkout ${payment.status}.`}
             {payment.adminNote && ["cancelled", "failed"].includes(payment.status) && <> · “{payment.adminNote}”</>}
           </p>
         ) : payment.status !== "pending" ? (
@@ -556,8 +558,47 @@ function Users({ onChanged }) {
 
 // ---------- Settings ----------
 
-function PayHereStatus({ status, currency }) {
+function PayPalStatus({ status, currency }) {
   if (!status) return null;
+
+  const problems = [];
+
+  if (!status.configured) {
+    problems.push("Add PAYPAL_CLIENT_ID and PAYPAL_CLIENT_SECRET (from developer.paypal.com → Apps & Credentials) to the environment variables, then redeploy.");
+  }
+
+  if (!status.currencySupported || String(currency).toUpperCase() === "LKR") {
+    problems.push("PayPal doesn't accept LKR. Use USD (or another PayPal currency) above.");
+  }
+
+  const ready = problems.length === 0;
+
+  return (
+    <section className={`payhere-status ${ready ? "is-ready" : ""}`}>
+      <h3>
+        {Icon.card} PayPal payments
+        <span className={`status-pill ${ready ? "status-approved" : "status-pending"}`}>
+          {ready ? (status.sandbox ? "Ready · sandbox" : "Live") : "Not ready"}
+        </span>
+      </h3>
+
+      {ready ? (
+        <p className="form-hint">
+          Buyers pay on PayPal and Pro unlocks as soon as they return.{" "}
+          {status.sandbox && "Sandbox mode: use your PayPal sandbox buyer account, no real money."}
+        </p>
+      ) : (
+        <ul className="payhere-problems">
+          {problems.map((p) => <li key={p}>{p}</li>)}
+        </ul>
+      )}
+    </section>
+  );
+}
+
+function PayHereStatus({ status, currency }) {
+  // PayHere is optional: hide it entirely until it's being set up.
+  if (!status?.configured) return null;
 
   const problems = [];
 
@@ -662,6 +703,7 @@ function Settings({ settings, onSaved }) {
         </label>
       </section>
 
+      <PayPalStatus status={settings.paypal} currency={form.currency} />
       <PayHereStatus status={settings.payhere} currency={form.currency} />
 
       {error && <p className="form-error">{error}</p>}

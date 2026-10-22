@@ -128,6 +128,11 @@ export default function App() {
   const [paymentResult] = useState(() =>
     new URLSearchParams(window.location.search).get("payment")
   );
+  // PayPal adds ?token=ORDER_ID when it sends the buyer back.
+  const [paymentToken] = useState(() =>
+    new URLSearchParams(window.location.search).get("token")
+  );
+  const paypalHandled = useRef(false);
   const fileInput = useRef(null);
   const filesRef = useRef(files);
 
@@ -176,11 +181,50 @@ export default function App() {
     };
   }, [pendingReview, refreshAccount]);
 
+  // Coming back from PayPal: capture the payment (once) and show the result.
+  useEffect(() => {
+    if (!paymentResult?.startsWith("paypal") || paypalHandled.current) return;
+
+    paypalHandled.current = true;
+    history.replaceState(null, "", window.location.pathname);
+
+    if (paymentResult === "paypal-cancel") {
+      fetchJson("/api/billing/paypal/cancel", { method: "POST", json: { orderId: paymentToken } }).catch(() => {});
+      setNotice({
+        type: "warn",
+        title: "Payment cancelled",
+        text: "No money was taken. You can try again any time.",
+      });
+      return;
+    }
+
+    setNotice({
+      type: "warn",
+      title: "Confirming your payment…",
+      text: "Finishing your PayPal payment. This takes a few seconds.",
+    });
+
+    fetchJson("/api/billing/paypal/capture", { method: "POST", json: { orderId: paymentToken } })
+      .then(async () => {
+        const data = await refreshAccount();
+
+        previousPlan.current = "pro";
+        setNotice({
+          type: "success",
+          title: "Your Pro pass is ready!",
+          text: `Payment confirmed. Unlimited film until ${formatDate(data?.proUntil)}.`,
+        });
+      })
+      .catch((error) => {
+        setNotice({ type: "error", title: "Payment not completed", text: error.message });
+      });
+  }, [paymentResult, paymentToken, refreshAccount]);
+
   // Coming back from PayHere: ?payment=return or ?payment=cancelled.
   useEffect(() => {
     const result = paymentResult;
 
-    if (!result) return;
+    if (!result || result.startsWith("paypal")) return;
 
     history.replaceState(null, "", window.location.pathname);
 

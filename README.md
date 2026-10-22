@@ -2,14 +2,15 @@
 
 Convert, compress and download images in the browser: AVIF, WEBP, JPEG and PNG, compressed to a target size. Built with React (Vite) and an Express API, ready to deploy on **Vercel**.
 
-A university portfolio project: free tier with limits, user accounts, a Pro plan paid by card (PayHere sandbox) or bank transfer, and an admin dashboard to review payments.
+A university portfolio project: free tier with limits, user accounts, a Pro plan paid with PayPal (sandbox) or by bank transfer, and an admin dashboard to review payments.
 
 ## Features
 
 - Upload images (drag & drop) or paste image URLs, pick formats and a target size, and download the results (one file, or a zip).
 - **Free:** 3 conversions in total, up to 5 images each, then locked. Counted per browser, account and IP address, so clearing cookies or making a new account doesn't reset it.
 - **Pro:** unlimited conversions, up to 50 images per batch. Needs an account.
-  - **Card via PayHere:** Pro unlocks automatically when PayHere confirms the payment.
+  - **PayPal (sandbox):** the buyer pays on PayPal (PayPal balance or card); when they return, the server captures the payment and Pro unlocks immediately.
+  - **PayHere (optional):** supported too, but PayHere only approves root domains, so it needs your own domain rather than `*.vercel.app`.
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
 - **Admin dashboard** (`/admin`): review payments and receipts, manage users' Pro access, set the price and bank details.
 
@@ -57,8 +58,8 @@ To run the built version instead, use `npm run build` and then `npm start`, and 
    | `ADMIN_EMAIL` | Your admin email |
    | `ADMIN_PASSWORD` | A strong password (8+ characters) |
    | `CRON_SECRET` | A long random string (protects the cleanup job) |
-   | `PAYHERE_MERCHANT_ID`, `PAYHERE_MERCHANT_SECRET` | Optional, from sandbox.payhere.lk |
-   | `PAYHERE_SANDBOX` | `true` |
+   | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | From developer.paypal.com (see below) |
+   | `PAYPAL_SANDBOX` | `true` |
 
    To make a random string, run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 5. **Redeploy** (Deployments → ⋯ → Redeploy) so the new variables are used.
@@ -66,7 +67,19 @@ To run the built version instead, use `npm run build` and then `npm start`, and 
 
 The tables are created automatically on first use. The admin account always follows `ADMIN_EMAIL` and `ADMIN_PASSWORD`: change them and redeploy to change the admin login.
 
-### PayHere (sandbox)
+### PayPal (sandbox)
+
+1. Sign in at [developer.paypal.com](https://developer.paypal.com) with a PayPal account (a free personal account works).
+2. Open **Apps & Credentials**, make sure **Sandbox** is selected, and click **Create App** (type: Merchant).
+3. Copy the app's **Client ID** and **Secret** into Vercel as `PAYPAL_CLIENT_ID` and `PAYPAL_CLIENT_SECRET` (mark the secret **Sensitive**), set `PAYPAL_SANDBOX=true`, and redeploy.
+4. In **admin → Settings**, use a PayPal currency such as **USD** (PayPal doesn't accept LKR). The PayPal box should say **Ready · sandbox**.
+5. To test, open **Testing Tools → Sandbox Accounts** on developer.paypal.com: there's a **Personal** (buyer) test account with fake money. Upgrade to Pro in the app, choose PayPal, and log in on PayPal's page with that buyer account's email and password.
+
+Pro is only granted when PayPal reports the capture as **COMPLETED** and the amount and currency match the order. Capturing twice can't add time twice, and users can only capture their own orders. No webhook is needed, so it works on any domain, including localhost.
+
+### PayHere (optional, needs your own domain)
+
+PayHere rejects subdomains such as `your-project.vercel.app`, so connect your own domain to Vercel first and register that root domain.
 
 1. Create a free account at [sandbox.payhere.lk](https://sandbox.payhere.lk).
 2. Under **Settings → Domains & Credentials**, add your Vercel domain (e.g. `your-project.vercel.app`) and copy the Merchant ID and Merchant Secret.

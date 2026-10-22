@@ -57,7 +57,7 @@ function PaymentHistory({ payments }) {
               <strong>{formatMoney(p.amount, p.currency)}</strong>
               <span>
                 {p.months} month{p.months === 1 ? "" : "s"} ·{" "}
-                {p.method === "payhere" ? "card (PayHere)" : "bank transfer"} ·{" "}
+                {{ payhere: "card (PayHere)", paypal: "PayPal" }[p.method] || "bank transfer"} ·{" "}
                 {formatDate(p.createdAt, SHORT_DATE)}
               </span>
               {p.status === "rejected" && p.adminNote && (
@@ -92,6 +92,51 @@ function submitToPayHere({ action, fields }) {
 
   document.body.appendChild(form);
   form.submit();
+}
+
+// PayPal: the server creates an order, then the buyer approves it on PayPal.
+function PayPalForm({ billing, months, total }) {
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const pay = async () => {
+    setBusy(true);
+    setError("");
+
+    try {
+      const { url } = await fetchJson("/api/billing/paypal/checkout", {
+        method: "POST",
+        json: { months },
+      });
+
+      window.location.href = url;
+    } catch (err) {
+      setError(err.message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="form method-form">
+      <p className="form-hint">
+        You&apos;ll be taken to PayPal to pay with your PayPal account or a
+        card. Pro unlocks as soon as you&apos;re back.
+      </p>
+
+      {error && <p className="form-error">{error}</p>}
+
+      <button type="button" className="btn-primary btn-paypal" onClick={pay} disabled={busy}>
+        {busy ? "Opening PayPal…" : <>Pay {total} with PayPal {Icon.arrow}</>}
+      </button>
+
+      {billing.methods.paypalSandbox && (
+        <p className="secure-note">
+          <strong>Test mode:</strong> log in with your PayPal <em>sandbox</em>{" "}
+          buyer account. No real money is charged.
+        </p>
+      )}
+    </div>
+  );
 }
 
 function CardForm({ billing, months, total }) {
@@ -314,7 +359,10 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
     fetchJson("/api/billing")
       .then((data) => {
         setBilling(data);
-        setMethod((m) => m || (data.methods.payhere ? "payhere" : data.methods.bank ? "bank" : null));
+        setMethod((m) =>
+          m ||
+          (data.methods.paypal ? "paypal" : data.methods.payhere ? "payhere" : data.methods.bank ? "bank" : null)
+        );
       })
       .catch((err) => setLoadError(err.message));
   }, [account.latestPayment?.status, account.plan]);
@@ -323,7 +371,7 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
   const isPending = latest?.status === "pending";
   const isPro = account.plan === "pro";
   const methods = billing?.methods;
-  const noMethods = methods && !methods.payhere && !methods.bank;
+  const noMethods = methods && !methods.paypal && !methods.payhere && !methods.bank;
   const total = billing ? formatMoney(billing.price * months, billing.currency) : "";
 
   return (
@@ -406,6 +454,21 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
                     <h3>How would you like to pay?</h3>
 
                     <div className="method-options" role="radiogroup">
+                      {methods.paypal && (
+                        <button
+                          type="button"
+                          role="radio"
+                          aria-checked={method === "paypal"}
+                          className={method === "paypal" ? "is-active" : ""}
+                          onClick={() => setMethod("paypal")}
+                        >
+                          <span className="method-icon">{Icon.card}</span>
+                          <strong>PayPal</strong>
+                          <small>PayPal balance or debit/credit card</small>
+                          <em className="method-tag is-instant">Instant</em>
+                        </button>
+                      )}
+
                       {methods.payhere && (
                         <button
                           type="button"
@@ -442,7 +505,11 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
                 <div className="step">
                   <span className="step-num">3</span>
                   <div className="step-content">
-                    <h3>{method === "payhere" ? `Pay ${total}` : "Transfer & upload"}</h3>
+                    <h3>{method === "bank" ? "Transfer & upload" : `Pay ${total}`}</h3>
+
+                    {method === "paypal" && (
+                      <PayPalForm billing={billing} months={months} total={total} />
+                    )}
 
                     {method === "payhere" && (
                       <CardForm billing={billing} months={months} total={total} />
