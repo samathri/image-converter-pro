@@ -47,6 +47,15 @@ function isValidUrl(value) {
 function RollMeter({ account, onUpgrade }) {
   if (!account) return null;
 
+  if (account.admin) {
+    return (
+      <div className="roll-meter is-pro" title="Admins have unlimited access">
+        <span className="pro-chip">{Icon.shield} Admin</span>
+        <span className="roll-label">Unlimited access</span>
+      </div>
+    );
+  }
+
   if (account.plan === "pro") {
     const renews = formatDate(account.proUntil, {
       day: "numeric",
@@ -208,7 +217,7 @@ export default function App() {
       .then(async () => {
         const data = await refreshAccount();
 
-        previousPlan.current = "pro";
+        previousPlan.current = `${data?.user?.id ?? "anon"}:pro`;
         setNotice({
           type: "success",
           title: "Your Pro pass is ready!",
@@ -253,7 +262,7 @@ export default function App() {
       if (stopped) return;
 
       if (data?.plan === "pro") {
-        previousPlan.current = "pro";
+        previousPlan.current = `${data.user?.id ?? "anon"}:pro`;
         setNotice({
           type: "success",
           title: "Your Pro pass is ready!",
@@ -280,11 +289,20 @@ export default function App() {
     };
   }, [paymentResult, refreshAccount]);
 
-  // Celebrate when the plan flips from free to Pro.
+  // Celebrate when the same user's plan flips from free to Pro (a real
+  // upgrade), not when someone signs in to an account that already has Pro.
   useEffect(() => {
     if (!account) return;
 
-    if (previousPlan.current === "free" && account.plan === "pro") {
+    const key = `${account.user?.id ?? "anon"}:${account.plan}`;
+    const [prevUser, prevPlan] = (previousPlan.current || "").split(":");
+
+    if (
+      prevPlan === "free" &&
+      account.plan === "pro" &&
+      prevUser === String(account.user?.id ?? "anon") &&
+      !account.admin
+    ) {
       setNotice({
         type: "success",
         title: "Your Pro pass is ready!",
@@ -292,7 +310,7 @@ export default function App() {
       });
     }
 
-    previousPlan.current = account.plan;
+    previousPlan.current = key;
   }, [account]);
 
   // Release thumbnail URLs when the app unmounts.
@@ -539,7 +557,9 @@ export default function App() {
           <RollMeter
             account={account}
             onUpgrade={() =>
-              account.plan === "pro" || pendingReview
+              account.admin
+                ? null
+                : account.plan === "pro" || pendingReview
                 ? setBillingOpen(true)
                 : setPaywall(outOfFilm ? "exhausted" : "upgrade")
             }

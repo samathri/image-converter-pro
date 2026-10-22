@@ -1,6 +1,6 @@
 import express from "express";
 import { getSettings, one, query, saveSettings, toIso, transaction } from "./db.js";
-import { requireAdmin, requireUser, getUserById, isPro, publicUser } from "./auth.js";
+import { isAdmin, rejectAdminPayments, requireAdmin, requireUser, getUserById, isPro, publicUser } from "./auth.js";
 import { payhereStatus } from "./payhere.js";
 import { paypalStatus } from "./paypal.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
@@ -47,6 +47,7 @@ function paymentView(row) {
         name: row.name,
         payRef: row.pay_ref,
         proUntil: isPro({ pro_until: row.pro_until }) ? toIso(row.pro_until) : null,
+        isAdmin: row.user_role === "admin",
       },
     }),
   };
@@ -97,7 +98,7 @@ billingRouter.get("/", async (req, res, next) => {
 });
 
 // The receipt itself is uploaded first (see uploads.js); this records the payment.
-billingRouter.post("/payments", async (req, res, next) => {
+billingRouter.post("/payments", rejectAdminPayments, async (req, res, next) => {
   const receiptPath = String(req.body.receiptPath || "");
   const ownReceipt = receiptPath.startsWith(`receipts/${req.user.id}/`);
 
@@ -173,7 +174,7 @@ adminRouter.get("/stats", async (req, res, next) => {
 
     res.json({
       pending: await count("SELECT COUNT(*)::int n FROM payments WHERE status = 'pending'"),
-      activePro: await count("SELECT COUNT(*)::int n FROM users WHERE pro_until > now()"),
+      activePro: await count("SELECT COUNT(*)::int n FROM users WHERE pro_until > now() AND role = 'user'"),
       users: await count("SELECT COUNT(*)::int n FROM users WHERE role = 'user'"),
       revenueThisMonth: (
         await query(
@@ -196,7 +197,7 @@ adminRouter.get("/payments", async (req, res, next) => {
     const filtered = ["pending", "approved", "rejected"].includes(status);
 
     const rows = await query(
-      `SELECT p.*, u.email, u.name, u.pro_until, u.pay_ref FROM payments p
+      `SELECT p.*, u.email, u.name, u.pro_until, u.pay_ref, u.role AS user_role FROM payments p
        JOIN users u ON u.id = p.user_id
        WHERE ${filtered ? "p.status = $1" : "p.status != 'awaiting_payment'"}
        ORDER BY (p.status = 'pending') DESC, p.id DESC
@@ -316,6 +317,7 @@ adminRouter.post("/users/:id/grant", async (req, res, next) => {
     const months = Number(req.body.months);
 
     if (!user) throw httpError(404, "User not found.");
+    if (isAdmin(user)) throw httpError(400, "Admins already have unlimited access.");
     if (!PLAN_MONTHS.includes(months)) throw httpError(400, "Choose a valid number of months.");
 
     res.json({ proUntil: await transaction((q) => extendPro(user.id, months, q)) });

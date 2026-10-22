@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import net from "net";
 import { getSettings, one, toIso, transaction } from "./db.js";
-import { cookieFlags, isPro, publicUser, readCookie } from "./auth.js";
+import { cookieFlags, isAdmin, isPro, publicUser, readCookie } from "./auth.js";
 import { secret } from "./secret.js";
 
 export const FREE_USES = 3;
@@ -143,17 +143,19 @@ function latestPayment(userId) {
 export async function getAccount(req) {
   const settings = await getSettings();
   const pro = isPro(req.user);
+  const admin = isAdmin(req.user);
   const payment = req.user ? await latestPayment(req.user.id) : null;
   const used = pro ? 0 : await freeUsesFor(req);
 
   return {
     user: publicUser(req.user),
     plan: pro ? "pro" : "free",
+    admin, // admins have unlimited access without a Pro period
     freeUses: FREE_USES,
     usesLeft: pro ? null : Math.max(0, FREE_USES - used),
     maxImages: pro ? PRO_MAX_IMAGES : FREE_MAX_IMAGES,
     proMaxImages: PRO_MAX_IMAGES,
-    proUntil: pro ? toIso(req.user.pro_until) : null,
+    proUntil: pro && !admin ? toIso(req.user.pro_until) : null,
     price: settings.price,
     currency: settings.currency,
     latestPayment: payment

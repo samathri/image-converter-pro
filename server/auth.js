@@ -116,8 +116,22 @@ export function getUserById(id) {
   return one("SELECT * FROM users WHERE id = $1", [id]);
 }
 
+export function isAdmin(user) {
+  return user?.role === "admin";
+}
+
+// Admins always have full access; users need an active Pro period.
 export function isPro(user) {
-  return Boolean(user?.pro_until && new Date(user.pro_until) > new Date());
+  return isAdmin(user) || Boolean(user?.pro_until && new Date(user.pro_until) > new Date());
+}
+
+// Refuses payment requests from admin accounts (they never need to pay).
+export function rejectAdminPayments(req, res, next) {
+  if (isAdmin(req.user)) {
+    return res.status(400).json({ message: "Admin accounts already have full access and don't need to pay." });
+  }
+
+  next();
 }
 
 export function publicUser(user) {
@@ -129,7 +143,7 @@ export function publicUser(user) {
     name: user.name,
     role: user.role,
     payRef: user.pay_ref,
-    proUntil: isPro(user) ? toIso(user.pro_until) : null,
+    proUntil: !isAdmin(user) && isPro(user) ? toIso(user.pro_until) : null,
   };
 }
 

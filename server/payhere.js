@@ -1,7 +1,7 @@
 import crypto from "crypto";
 import express from "express";
 import { getSettings, one, transaction } from "./db.js";
-import { requireUser } from "./auth.js";
+import { rejectAdminPayments, requireUser } from "./auth.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
 
 // Docs: https://support.payhere.lk/api-&-mobile-sdk/checkout-api
@@ -80,7 +80,7 @@ export async function payhereStatus(req) {
 
 export const payhereRouter = express.Router();
 
-payhereRouter.post("/checkout", requireUser, async (req, res, next) => {
+payhereRouter.post("/checkout", requireUser, rejectAdminPayments, async (req, res, next) => {
   try {
     const status = await payhereStatus(req);
 

@@ -6,7 +6,7 @@
 // No webhook is needed, so this works on any domain (and on localhost).
 import express from "express";
 import { getSettings, one, transaction } from "./db.js";
-import { requireUser } from "./auth.js";
+import { rejectAdminPayments, requireUser } from "./auth.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
 
 const CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
@@ -95,7 +95,7 @@ export const paypalRouter = express.Router();
 paypalRouter.use(requireUser);
 
 // Creates a PayPal order and returns the URL to send the buyer to.
-paypalRouter.post("/checkout", async (req, res, next) => {
+paypalRouter.post("/checkout", rejectAdminPayments, async (req, res, next) => {
   try {
     const status = await paypalStatus();
 

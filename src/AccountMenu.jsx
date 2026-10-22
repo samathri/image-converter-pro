@@ -62,18 +62,23 @@ export default function AccountMenu({ account, onSignIn, onBilling, onSignOut })
             <strong>{user.name}</strong>
             <span>{user.email}</span>
             <em className={`plan-line plan-${account.plan}`}>
-              {account.plan === "pro"
-                ? `Pro until ${formatDate(account.proUntil, { day: "numeric", month: "short", year: "numeric" })}`
-                : pending
-                  ? "Free · Pro payment under review"
-                  : `Free · ${account.usesLeft} of ${account.freeUses} rolls left`}
+              {account.admin
+                ? "Admin · unlimited access"
+                : account.plan === "pro"
+                  ? `Pro until ${formatDate(account.proUntil, { day: "numeric", month: "short", year: "numeric" })}`
+                  : pending
+                    ? "Free · Pro payment under review"
+                    : `Free · ${account.usesLeft} of ${account.freeUses} rolls left`}
             </em>
           </div>
 
-          <button role="menuitem" onClick={run(onBilling)}>
-            {Icon.receipt}
-            {account.plan === "pro" ? "Extend Pro & billing" : pending ? "Payment status" : "Upgrade to Pro"}
-          </button>
+          {/* Admins have unlimited access, so there's nothing to buy. */}
+          {!account.admin && (
+            <button role="menuitem" onClick={run(onBilling)}>
+              {Icon.receipt}
+              {account.plan === "pro" ? "Extend Pro & billing" : pending ? "Payment status" : "Upgrade to Pro"}
+            </button>
+          )}
 
           {user.role === "admin" && (
             <a role="menuitem" href="/admin">

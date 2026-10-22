@@ -457,7 +457,9 @@ function UserRow({ user, onChanged }) {
         {user.role === "admin" && <em className="role-chip">admin</em>}
       </td>
       <td>
-        {user.proUntil ? (
+        {user.role === "admin" ? (
+          <span className="status-pill status-approved">Admin · unlimited</span>
+        ) : user.proUntil ? (
           <span className="status-pill status-approved">
             Pro · {formatDate(user.proUntil, SHORT_DATE)}
           </span>
@@ -470,6 +472,9 @@ function UserRow({ user, onChanged }) {
       <td>{user.paidCount}</td>
       <td>{formatDate(user.createdAt, SHORT_DATE)}</td>
       <td>
+        {user.role === "admin" ? (
+          <span className="muted">Full access</span>
+        ) : (
         <div className="row-actions">
           <select value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-label="Months">
             {PLAN_MONTHS.map((m) => (
@@ -491,6 +496,7 @@ function UserRow({ user, onChanged }) {
             </button>
           )}
         </div>
+        )}
       </td>
     </tr>
   );
