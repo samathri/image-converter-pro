@@ -1,19 +1,19 @@
 // File storage for uploaded images, conversion results and receipts.
-// On Vercel: a *private* Vercel Blob store (BLOB_READ_WRITE_TOKEN).
-// Locally (no token): files under data/blobs, served through signed links.
+// On Vercel: a *private* Vercel Blob store. Connecting the store to the
+// project adds BLOB_STORE_ID, and the Blob SDK then authenticates with
+// Vercel's automatic OIDC credentials. A BLOB_READ_WRITE_TOKEN also works.
+// Locally (neither set): files under data/blobs, served through signed links.
 import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { DATA_DIR } from "./db.js";
 import { secret } from "./secret.js";
 
-const BLOB_TOKEN = process.env.BLOB_READ_WRITE_TOKEN || "";
-
-export const usingBlob = Boolean(BLOB_TOKEN);
+export const usingBlob = Boolean(process.env.BLOB_STORE_ID || process.env.BLOB_READ_WRITE_TOKEN);
 
 if (!usingBlob && process.env.VERCEL) {
   throw new Error(
-    "BLOB_READ_WRITE_TOKEN is not set. Create a private Blob store for the Vercel project."
+    "No Blob store is connected. Create a private Blob store and connect it to the Vercel project."
   );
 }
 
@@ -52,7 +52,7 @@ async function streamToBuffer(stream) {
 export async function readFile(pathname) {
   if (usingBlob) {
     const { get } = await blob();
-    const result = await get(pathname, { access: "private", token: BLOB_TOKEN, useCache: false });
+    const result = await get(pathname, { access: "private", useCache: false });
 
     return result?.stream ? streamToBuffer(result.stream) : null;
   }
@@ -73,7 +73,6 @@ export async function writeFile(pathname, buffer, contentType) {
       access: "private",
       addRandomSuffix: true,
       contentType,
-      token: BLOB_TOKEN,
     });
 
     return result.pathname;
@@ -95,7 +94,7 @@ export async function deleteFiles(pathnames) {
 
   if (usingBlob) {
     const { del } = await blob();
-    await del(list, { token: BLOB_TOKEN });
+    await del(list);
     return;
   }
 
@@ -118,7 +117,6 @@ export async function downloadUrl(pathname, minutes = 15) {
       pathname,
       operations: ["get"],
       validUntil,
-      token: BLOB_TOKEN,
     });
     const { presignedUrl } = await presignUrl(token, {
       operation: "get",
@@ -168,13 +166,13 @@ export async function cleanupOldFiles(prefixes, maxAgeMs) {
       let cursor;
 
       do {
-        const page = await list({ prefix, cursor, limit: 1000, token: BLOB_TOKEN });
+        const page = await list({ prefix, cursor, limit: 1000 });
         const old = page.blobs
           .filter((b) => new Date(b.uploadedAt).getTime() < cutoff)
           .map((b) => b.url);
 
         if (old.length) {
-          await del(old, { token: BLOB_TOKEN });
+          await del(old);
           removed += old.length;
         }
 

@@ -48,7 +48,7 @@ To run the built version instead, use `npm run build` and then `npm start`, and 
 
 1. **Push the project to GitHub**, then in Vercel choose **Add New → Project** and import the repository. The settings in `vercel.json` are picked up automatically.
 2. **Add a database:** in the project, open **Storage → Create Database → Neon (Postgres)** and connect it to the project. This adds `DATABASE_URL`.
-3. **Add file storage:** **Storage → Create → Blob**, choose **Private** access, and connect it. Make sure `BLOB_READ_WRITE_TOKEN` appears in the project's environment variables. If it doesn't, copy it from the Blob store's settings and add it yourself.
+3. **Add file storage:** **Storage → Create → Blob**, choose **Private** access, and connect it to the project. This adds `BLOB_STORE_ID`; the app then uses Vercel's automatic credentials, so no token needs to be copied. (A `BLOB_READ_WRITE_TOKEN` also works if you have one.)
 4. **Add environment variables** in **Settings → Environment Variables**:
 
    | Name | Value |

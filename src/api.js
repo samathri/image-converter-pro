@@ -63,10 +63,10 @@ export async function uploadFile(file, { account, purpose = "image", onProgress 
     return uploadLocal(file, pathname, purpose, onProgress);
   }
 
-  const { upload } = await import("@vercel/blob/client");
+  const { uploadPresigned } = await import("@vercel/blob/client");
 
   try {
-    const blob = await upload(pathname, file, {
+    const blob = await uploadPresigned(pathname, file, {
       access: "private",
       handleUploadUrl: "/api/uploads",
       clientPayload: JSON.stringify({ purpose }),

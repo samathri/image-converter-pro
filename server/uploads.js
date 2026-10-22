@@ -53,28 +53,39 @@ async function uploadRules(req, purpose, pathname) {
 
 export const uploadsRouter = express.Router();
 
-// Vercel Blob client uploads: hands the browser a short-lived upload token.
+// Vercel Blob uploads: hands the browser a short-lived presigned upload URL.
+// Works with Vercel's automatic OIDC credentials (or a read-write token).
 uploadsRouter.post("/", async (req, res, next) => {
   if (!usingBlob) return next(httpError(404, "Not found."));
 
   try {
-    const { handleUpload } = await import("@vercel/blob/client");
+    const [{ issueSignedToken }, { handleUploadPresigned }] = await Promise.all([
+      import("@vercel/blob"),
+      import("@vercel/blob/client"),
+    ]);
 
-    const result = await handleUpload({
+    const result = await handleUploadPresigned({
       body: req.body,
       request: req,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
-      onBeforeGenerateToken: async (pathname, clientPayload) => {
+      getSignedToken: async (pathname, clientPayload) => {
         const { purpose } = JSON.parse(clientPayload || "{}");
+        const rules = await uploadRules(req, purpose, pathname);
+        const validUntil = Date.now() + 10 * 60 * 1000;
 
         return {
-          ...(await uploadRules(req, purpose, pathname)),
-          addRandomSuffix: true,
-          validUntil: Date.now() + 10 * 60 * 1000,
+          token: await issueSignedToken({
+            pathname,
+            operations: ["put"],
+            validUntil,
+            ...rules,
+          }),
+          urlOptions: {
+            ...rules,
+            validUntil,
+            addRandomSuffix: true,
+            allowOverwrite: false,
+          },
         };
-      },
-      onUploadCompleted: async () => {
-        // Nothing to record: the convert/payment request references the file.
       },
     });
 
