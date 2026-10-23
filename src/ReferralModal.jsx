@@ -45,7 +45,7 @@ export default function ReferralModal({ onClose }) {
         {!data && !error && <p className="modal-lead">Loading…</p>}
 
         {data && !data.eligible && (
-          <p className="modal-lead">Buy a Pro plan to get your invite link.</p>
+          <p className="modal-lead">Get Pro to unlock your invite link.</p>
         )}
 
         {data?.eligible && !data.enabled && (

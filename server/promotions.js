@@ -27,8 +27,13 @@ export async function referralSettings(q) {
 export async function canInvite(user) {
   if (!user || user.role !== "user") return false;
 
+  // Anyone who has paid, or has Pro now (including Pro granted by an admin).
   return Boolean(
-    await one("SELECT id FROM payments WHERE user_id = $1 AND status = 'approved' LIMIT 1", [user.id])
+    await one(
+      `SELECT 1 FROM users u WHERE u.id = $1 AND (u.pro_until > now()
+         OR EXISTS (SELECT 1 FROM payments WHERE user_id = u.id AND status = 'approved'))`,
+      [user.id]
+    )
   );
 }
 

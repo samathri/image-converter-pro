@@ -80,7 +80,7 @@ export default function AccountMenu({ account, onSignIn, onBilling, onInvite, on
             </button>
           )}
 
-          {account.canInvite && (
+          {user.role === "user" && (
             <button role="menuitem" onClick={run(onInvite)}>
               {Icon.gift}
               Invite friends
