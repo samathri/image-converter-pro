@@ -156,6 +156,9 @@ const SCHEMA = `
   ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT false;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_days_earned INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_uses INTEGER NOT NULL DEFAULT 0;
+  -- Which Pro period (pro_until) the last expiry reminder email was for.
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_reminder_for TIMESTAMPTZ;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS expiry_reminder_stage TEXT;
 
   ALTER TABLE payments ADD COLUMN IF NOT EXISTS list_amount DOUBLE PRECISION;
   ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount_amount DOUBLE PRECISION NOT NULL DEFAULT 0;

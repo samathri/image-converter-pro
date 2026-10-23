@@ -14,6 +14,7 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
 - **Accounts:** sign up with email (a 6-digit code is emailed to verify it) or Google. Show/hide password, and "Forgot password" with an emailed code.
 - **Offers:** timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (invite links, bonus free conversions and a first-purchase discount for friends, free Pro days for the referrer).
+- **Pro expiry:** users see a banner and an amber badge in the last 7 days and after it ends, and get reminder emails 7 days before, 1 day before and on the day it ends (once each per Pro period; renewing resets them). Admins see each user's expiry date and days left, and an "ending this week" list on the Overview.
 - **Admin dashboard** (`/admin`): review payments and receipts, manage users (grant or revoke Pro, make admin, delete), run promotions, set the price and bank details. Admins always have unlimited access; the owner account (`ADMIN_EMAIL`) can't be demoted or deleted.
 
 ## Architecture
@@ -25,7 +26,7 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
 | Database | Postgres (Neon) via `DATABASE_URL` | Built-in PGlite in `data/pglite`, no setup |
 | Files | Private Vercel Blob store | `data/blobs` |
 
-Vercel Functions accept at most 4.5 MB per request, so images and receipts are uploaded from the browser **straight to Blob storage**. The API then converts them and returns a short-lived signed download link. Temporary uploads and results are deleted after an hour by a daily cleanup job.
+Vercel Functions accept at most 4.5 MB per request, so images and receipts are uploaded from the browser **straight to Blob storage**. The API then converts them and returns a short-lived signed download link. A daily job (Vercel Cron, 03:00 UTC) deletes temporary uploads and results older than an hour and emails Pro expiry reminders.
 
 ## Run locally
 
@@ -59,7 +60,7 @@ To run the built version instead, use `npm run build` and then `npm start`, and 
    | `SESSION_SECRET` | A long random string (required) |
    | `ADMIN_EMAIL` | Your admin email |
    | `ADMIN_PASSWORD` | A strong password (8+ characters) |
-   | `CRON_SECRET` | A long random string (protects the cleanup job) |
+   | `CRON_SECRET` | A long random string (required for the daily job: cleanup and expiry reminders) |
    | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | From developer.paypal.com (see below) |
    | `PAYPAL_SANDBOX` | `true` |
 

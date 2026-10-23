@@ -798,6 +798,32 @@ button.stat:hover {
   }
 }
 
+/* ---------- Pro expiry ---------- */
+
+.expiry {
+  display: grid;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.expiry small {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.expiry.is-soon small {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.expiry.is-ended {
+  color: var(--muted);
+}
+
+.expiry.is-ended small {
+  color: var(--danger);
+}
+
 /* ---------- Users ---------- */
 
 .search {

@@ -163,6 +163,11 @@ export async function getAccount(req) {
     maxImages: pro ? PRO_MAX_IMAGES : FREE_MAX_IMAGES,
     proMaxImages: PRO_MAX_IMAGES,
     proUntil: pro && !admin ? toIso(req.user.pro_until) : null,
+    // Set for 30 days after a Pro plan ends, so the app can offer a renewal.
+    proEndedAt:
+      !pro && req.user?.pro_until && Date.now() - new Date(req.user.pro_until) < 30 * 864e5
+        ? toIso(req.user.pro_until)
+        : null,
     price: settings.price,
     currency: settings.currency,
     campaign: campaignView(campaign),

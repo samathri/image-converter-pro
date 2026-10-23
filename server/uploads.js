@@ -3,6 +3,7 @@
 import express from "express";
 import multer from "multer";
 import { canConvert } from "./quota.js";
+import { sendExpiryReminders } from "./reminders.js";
 import { RECEIPT_MAX_BYTES, RECEIPT_TYPES } from "./billing.js";
 import {
   cleanupOldFiles,
@@ -139,13 +140,40 @@ export async function cleanupTemporaryFiles() {
 
 export const cronRouter = express.Router();
 
-cronRouter.get("/cleanup", async (req, res, next) => {
+// Vercel calls the daily job with "Authorization: Bearer CRON_SECRET".
+function requireCronSecret(req, res, next) {
   const secret = process.env.CRON_SECRET;
 
   if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
     return res.status(401).json({ message: "Unauthorized." });
   }
 
+  next();
+}
+
+function siteUrl(req) {
+  const fromEnv =
+    process.env.PUBLIC_URL ||
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL && `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`);
+
+  return (fromEnv || `${req.protocol}://${req.get("host")}`).replace(/\/+$/, "");
+}
+
+// Daily job: delete temporary files and email Pro expiry reminders.
+cronRouter.get("/daily", requireCronSecret, async (req, res, next) => {
+  try {
+    const [removed, reminders] = await Promise.all([
+      cleanupTemporaryFiles(),
+      sendExpiryReminders(siteUrl(req)),
+    ]);
+
+    res.json({ removed, reminders });
+  } catch (error) {
+    next(error);
+  }
+});
+
+cronRouter.get("/cleanup", requireCronSecret, async (req, res, next) => {
   try {
     res.json({ removed: await cleanupTemporaryFiles() });
   } catch (error) {

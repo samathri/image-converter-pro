@@ -189,6 +189,44 @@ function Overview({ stats, settings, goTo }) {
       )}
 
       <ReviewQueue count={stats.pending} goTo={goTo} />
+
+      <section className="queue">
+        <header>
+          <h2>Pro ending in the next 7 days</h2>
+          {stats.expiringSoon?.length > 0 && (
+            <button className="btn-ghost" onClick={() => goTo("users")}>
+              All users {Icon.arrow}
+            </button>
+          )}
+        </header>
+
+        {!stats.expiringSoon?.length ? (
+          <div className="empty-state">
+            {Icon.check}
+            <p>No Pro plans end this week.</p>
+          </div>
+        ) : (
+          <ul>
+            {stats.expiringSoon.map((u) => {
+              const days = Math.max(1, Math.ceil((new Date(u.proUntil) - Date.now()) / 864e5));
+
+              return (
+                <li key={u.id}>
+                  <span className="queue-avatar">{u.name.charAt(0).toUpperCase()}</span>
+                  <div>
+                    <strong>{u.name}</strong>
+                    <span>{u.email}</span>
+                  </div>
+                  <span className="expiry is-soon">
+                    {formatDate(u.proUntil, SHORT_DATE)}
+                    <small>{days} day{days === 1 ? "" : "s"} left</small>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </>
   );
 }
@@ -438,6 +476,33 @@ function Payments({ settings, onChanged }) {
 
 // ---------- Users ----------
 
+// Pro expiry: date plus days left (amber in the last week) or how long ago it ended.
+function ExpiryCell({ user }) {
+  if (user.role === "admin") return <span className="muted">Never</span>;
+  if (!user.proExpiresAt) return <span className="muted">—</span>;
+
+  const days = Math.ceil((new Date(user.proExpiresAt) - Date.now()) / 864e5);
+  const date = formatDate(user.proExpiresAt, SHORT_DATE);
+
+  if (days <= 0) {
+    const ago = Math.max(0, -days);
+
+    return (
+      <span className="expiry is-ended">
+        {date}
+        <small>Expired {ago === 0 ? "today" : `${ago} day${ago === 1 ? "" : "s"} ago`}</small>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`expiry ${days <= 7 ? "is-soon" : ""}`}>
+      {date}
+      <small>{days} day{days === 1 ? "" : "s"} left</small>
+    </span>
+  );
+}
+
 function UserRow({ user, onChanged }) {
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -494,6 +559,9 @@ Their account, payments and receipts are removed permanently. This can't be undo
         ) : (
           <span className="status-pill">Free</span>
         )}
+      </td>
+      <td>
+        <ExpiryCell user={user} />
       </td>
       <td className="mono">{user.payRef}</td>
       <td>{user.freeUses}</td>
@@ -583,6 +651,7 @@ function Users({ onChanged }) {
               <tr>
                 <th>User</th>
                 <th>Plan</th>
+                <th>Expires</th>
                 <th>Pay ref</th>
                 <th>Free uses</th>
                 <th>Payments</th>

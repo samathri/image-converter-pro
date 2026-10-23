@@ -45,6 +45,56 @@ function isValidUrl(value) {
 }
 
 // Topbar meter: each free conversion is a "roll of film".
+// Whole days left until a date (at least 1 while it hasn't passed).
+function daysLeft(iso) {
+  return Math.max(1, Math.ceil((new Date(iso) - Date.now()) / 864e5));
+}
+
+// "Your Pro plan ends in N days" / "Your Pro plan ended" banner.
+function ExpiryBanner({ account, onRenew }) {
+  const key = account?.proUntil || account?.proEndedAt;
+  const [hidden, setHidden] = useState(() => {
+    try {
+      return sessionStorage.getItem("icp-expiry-dismissed") === key;
+    } catch {
+      return false;
+    }
+  });
+
+  if (!account?.user || account.admin || hidden) return null;
+
+  let text;
+
+  if (account.plan === "pro" && account.proUntil && daysLeft(account.proUntil) <= 7) {
+    const left = daysLeft(account.proUntil);
+
+    text = `Your Pro plan ends in ${left} day${left === 1 ? "" : "s"} (${formatDate(account.proUntil, { day: "numeric", month: "short" })}).`;
+  } else if (account.plan !== "pro" && account.proEndedAt) {
+    text = `Your Pro plan ended on ${formatDate(account.proEndedAt, { day: "numeric", month: "short" })}.`;
+  } else {
+    return null;
+  }
+
+  const dismiss = () => {
+    setHidden(true);
+
+    try {
+      sessionStorage.setItem("icp-expiry-dismissed", key);
+    } catch {
+      // storage unavailable: it just shows again next time
+    }
+  };
+
+  return (
+    <div className="expiry-banner" role="status">
+      {Icon.clock}
+      <span>{text}</span>
+      <button type="button" className="expiry-renew" onClick={onRenew}>Renew Pro</button>
+      <button type="button" className="expiry-close" onClick={dismiss} aria-label="Dismiss">{Icon.x}</button>
+    </div>
+  );
+}
+
 function RollMeter({ account, onUpgrade }) {
   if (!account) return null;
 
@@ -62,11 +112,19 @@ function RollMeter({ account, onUpgrade }) {
       day: "numeric",
       month: "short",
     });
+    const left = daysLeft(account.proUntil);
+    const ending = left <= 7;
 
     return (
-      <button className="roll-meter is-pro" onClick={onUpgrade} title={`Pro until ${renews}`}>
+      <button
+        className={`roll-meter is-pro ${ending ? "is-expiring" : ""}`}
+        onClick={onUpgrade}
+        title={`Pro until ${renews}`}
+      >
         <span className="pro-chip">{Icon.sparkle} Pro</span>
-        <span className="roll-label">Unlimited film · until {renews}</span>
+        <span className="roll-label">
+          {ending ? `Ends in ${left} day${left === 1 ? "" : "s"}` : `Unlimited film · until ${renews}`}
+        </span>
       </button>
     );
   }
@@ -191,6 +249,18 @@ export default function App() {
       window.removeEventListener("focus", onFocus);
     };
   }, [pendingReview, refreshAccount]);
+
+  // Reminder emails link to /?renew=1: open billing (or sign-in first).
+  const [renewRequested] = useState(() => new URLSearchParams(window.location.search).has("renew"));
+
+  useEffect(() => {
+    if (!renewRequested || !account) return;
+
+    history.replaceState(null, "", window.location.pathname);
+
+    if (account.user && !account.admin) setBillingOpen(true);
+    else if (!account.user) setAuth({ mode: "login", reason: "Sign in to renew your Pro plan." });
+  }, [renewRequested, account?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Google sign-in problems come back as ?auth_error=...
   useEffect(() => {
@@ -589,6 +659,8 @@ export default function App() {
           )}
         </div>
       )}
+
+      <ExpiryBanner account={account} onRenew={() => setBillingOpen(true)} />
 
       <header className="topbar">
         <div className="brand">

@@ -57,6 +57,69 @@
   background: rgba(255, 255, 255, 0.55);
 }
 
+/* ---------- Pro expiry banner ---------- */
+
+.expiry-banner {
+  max-width: 1320px;
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
+  font-size: 14px;
+}
+
+.expiry-banner > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+  color: var(--warn);
+}
+
+.expiry-banner span {
+  flex: 1;
+}
+
+.expiry-renew {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}
+
+.expiry-close {
+  flex: none;
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--muted);
+}
+
+.expiry-close:hover {
+  background: var(--surface-3);
+}
+
+.expiry-close svg {
+  width: 14px;
+  height: 14px;
+}
+
+.roll-meter.is-expiring {
+  border-color: var(--warn);
+}
+
+.roll-meter.is-expiring .roll-label {
+  color: var(--warn);
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {

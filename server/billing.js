@@ -196,6 +196,13 @@ adminRouter.get("/stats", async (req, res, next) => {
         )
       ).map((r) => ({ currency: r.currency, total: Number(r.total) })),
       freeConversions: await count("SELECT COALESCE(SUM(free_uses), 0)::int n FROM visitors"),
+      expiringSoon: (
+        await query(
+          `SELECT id, name, email, pro_until FROM users
+           WHERE role = 'user' AND pro_until BETWEEN now() AND now() + interval '7 days'
+           ORDER BY pro_until LIMIT 20`
+        )
+      ).map((u) => ({ id: u.id, name: u.name, email: u.email, proUntil: toIso(u.pro_until) })),
     });
   } catch (error) {
     next(error);
@@ -318,6 +325,8 @@ adminRouter.get("/users", async (req, res, next) => {
         paidCount: u.paid_count,
         isOwner: isOwnerAccount(u),
         isYou: u.id === req.user.id,
+        // Also set after expiry (publicUser hides it then), for the Expires column.
+        proExpiresAt: toIso(u.pro_until),
       })),
     });
   } catch (error) {
