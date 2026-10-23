@@ -179,7 +179,7 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS email_codes_lookup ON email_codes(email, purpose);
 
-  -- Google / Facebook accounts linked to a user.
+  -- Google accounts linked to a user.
   CREATE TABLE IF NOT EXISTS oauth_accounts (
     provider TEXT NOT NULL,
     provider_user_id TEXT NOT NULL,

@@ -69,7 +69,7 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
-  const [providers, setProviders] = useState({ google: false, facebook: false });
+  const [providers, setProviders] = useState({ google: false });
 
   useEffect(() => {
     fetchJson("/api/auth/providers").then(setProviders).catch(() => {});
@@ -133,7 +133,7 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
     });
 
   const [eyebrow, title] = TITLES[mode];
-  const showSocial = (mode === "login" || mode === "register") && (providers.google || providers.facebook);
+  const showSocial = (mode === "login" || mode === "register") && providers.google;
   const codeStep = mode === "verify" || mode === "reset";
 
   return (
@@ -157,11 +157,6 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
             {providers.google && (
               <a className="social-btn" href="/api/auth/oauth/google">
                 {Icon.google} Continue with Google
-              </a>
-            )}
-            {providers.facebook && (
-              <a className="social-btn" href="/api/auth/oauth/facebook">
-                {Icon.facebook} Continue with Facebook
               </a>
             )}
             <div className="divider"><span>or</span></div>

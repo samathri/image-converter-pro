@@ -192,7 +192,7 @@ export default function App() {
     };
   }, [pendingReview, refreshAccount]);
 
-  // Google/Facebook sign-in problems come back as ?auth_error=...
+  // Google sign-in problems come back as ?auth_error=...
   useEffect(() => {
     const message = new URLSearchParams(window.location.search).get("auth_error");
 

@@ -12,7 +12,7 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
   - **PayPal (sandbox):** the buyer pays on PayPal (PayPal balance or card); when they return, the server captures the payment and Pro unlocks immediately.
   - **PayHere (optional):** supported too, but PayHere only approves root domains, so it needs your own domain rather than `*.vercel.app`.
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
-- **Accounts:** sign up with email (a 6-digit code is emailed to verify it), Google or Facebook. Show/hide password, and "Forgot password" with an emailed code.
+- **Accounts:** sign up with email (a 6-digit code is emailed to verify it) or Google. Show/hide password, and "Forgot password" with an emailed code.
 - **Offers:** timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (invite links, bonus free conversions and a first-purchase discount for friends, free Pro days for the referrer).
 - **Admin dashboard** (`/admin`): review payments and receipts, manage users (grant or revoke Pro, make admin, delete), run promotions, set the price and bank details. Admins always have unlimited access; the owner account (`ADMIN_EMAIL`) can't be demoted or deleted.
 
@@ -84,14 +84,7 @@ Gmail allows around 500 emails a day. Locally, without these settings, the codes
 3. Under **Authorised redirect URIs** add `https://YOUR-DOMAIN/api/auth/oauth/google/callback` (and `http://localhost:3001/api/auth/oauth/google/callback` for local testing).
 4. Copy the **Client ID** and **Client secret** into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then redeploy. The "Continue with Google" button appears automatically.
 
-### Facebook sign-in
-
-1. Go to [developers.facebook.com](https://developers.facebook.com) → **My Apps → Create app**, and add the **Facebook Login** product.
-2. In **Facebook Login → Settings**, add `https://YOUR-DOMAIN/api/auth/oauth/facebook/callback` to **Valid OAuth Redirect URIs**.
-3. In **App settings → Basic**, copy the **App ID** and **App secret** into `FACEBOOK_APP_ID` and `FACEBOOK_APP_SECRET`, add a privacy policy URL, and redeploy.
-4. While the app is in **Development** mode only you (and people you add as testers) can sign in; switch it to **Live** for everyone.
-
-Google/Facebook accounts are matched to existing accounts by email. New ones get no password; they can set one with "Forgot password".
+Google accounts are matched to existing accounts by email. New ones get no password; they can set one with "Forgot password".
 
 ### PayPal (sandbox)
 

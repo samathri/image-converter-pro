@@ -460,10 +460,9 @@ authRouter.post("/logout", async (req, res, next) => {
   }
 });
 
-// ---------- Google / Facebook sign-in (OAuth 2.0) ----------
+// ---------- Google sign-in (OAuth 2.0) ----------
 
 const OAUTH_COOKIE = "icp_oauth";
-const FACEBOOK_API = "https://graph.facebook.com/v25.0";
 
 const PROVIDERS = {
   google: {
@@ -473,19 +472,12 @@ const PROVIDERS = {
     scope: "openid email profile",
     pkce: true,
   },
-  facebook: {
-    clientId: process.env.FACEBOOK_APP_ID || "",
-    clientSecret: process.env.FACEBOOK_APP_SECRET || "",
-    authorizeUrl: "https://www.facebook.com/v25.0/dialog/oauth",
-    scope: "email,public_profile",
-    pkce: false,
-  },
 };
 
 const configured = (name) => Boolean(PROVIDERS[name]?.clientId && PROVIDERS[name]?.clientSecret);
 
 export function oauthProviders() {
-  return { google: configured("google"), facebook: configured("facebook") };
+  return { google: configured("google") };
 }
 
 function publicUrl(req) {
@@ -506,7 +498,7 @@ authRouter.get("/providers", (req, res) => {
   res.json(oauthProviders());
 });
 
-// Sends the browser to Google/Facebook.
+// Sends the browser to Google.
 authRouter.get("/oauth/:provider", (req, res) => {
   const name = req.params.provider;
   const provider = PROVIDERS[name];
@@ -570,38 +562,10 @@ async function fetchProfile(name, provider, req, code, verifier) {
     return { id: info.sub, email: info.email, name: info.name || info.email.split("@")[0] };
   }
 
-  // Facebook
-  const tokenRes = await fetch(
-    `${FACEBOOK_API}/oauth/access_token?${new URLSearchParams({
-      client_id: provider.clientId,
-      client_secret: provider.clientSecret,
-      redirect_uri: callbackUrl(req, name),
-      code,
-    })}`
-  );
-  const token = await tokenRes.json();
-
-  if (!tokenRes.ok) throw new Error(`token exchange failed: ${JSON.stringify(token)}`);
-
-  const proof = crypto.createHmac("sha256", provider.clientSecret).update(token.access_token).digest("hex");
-  const info = await (
-    await fetch(
-      `${FACEBOOK_API}/me?${new URLSearchParams({
-        fields: "id,name,email",
-        access_token: token.access_token,
-        appsecret_proof: proof,
-      })}`
-    )
-  ).json();
-
-  if (!info.email) {
-    throw Object.assign(new Error("Facebook didn't share your email address. Please sign up with email instead."), { public: true });
-  }
-
-  return { id: info.id, email: info.email, name: info.name || info.email.split("@")[0] };
+  throw new Error(`unknown provider ${name}`);
 }
 
-// Google/Facebook send the browser back here.
+// Google sends the browser back here.
 authRouter.get("/oauth/:provider/callback", async (req, res) => {
   const name = req.params.provider;
   const provider = PROVIDERS[name];
