@@ -3,6 +3,7 @@ import net from "net";
 import { getSettings, one, toIso, transaction } from "./db.js";
 import { cookieFlags, isAdmin, isPro, publicUser, readCookie } from "./auth.js";
 import { secret } from "./secret.js";
+import { activeCampaign, campaignView } from "./promotions.js";
 
 export const FREE_USES = 3;
 export const FREE_MAX_IMAGES = 5;
@@ -131,6 +132,11 @@ async function adjustFreeUses(req, delta) {
   });
 }
 
+// 3 free conversions, plus any bonus from a friend's invite.
+function freeLimit(req) {
+  return FREE_USES + (req.user?.bonus_uses ?? 0);
+}
+
 function latestPayment(userId) {
   return one(
     `SELECT id, status, method, admin_note, created_at, reviewed_at FROM payments
@@ -146,18 +152,20 @@ export async function getAccount(req) {
   const admin = isAdmin(req.user);
   const payment = req.user ? await latestPayment(req.user.id) : null;
   const used = pro ? 0 : await freeUsesFor(req);
+  const campaign = await activeCampaign();
 
   return {
     user: publicUser(req.user),
     plan: pro ? "pro" : "free",
     admin, // admins have unlimited access without a Pro period
-    freeUses: FREE_USES,
-    usesLeft: pro ? null : Math.max(0, FREE_USES - used),
+    freeUses: freeLimit(req),
+    usesLeft: pro ? null : Math.max(0, freeLimit(req) - used),
     maxImages: pro ? PRO_MAX_IMAGES : FREE_MAX_IMAGES,
     proMaxImages: PRO_MAX_IMAGES,
     proUntil: pro && !admin ? toIso(req.user.pro_until) : null,
     price: settings.price,
     currency: settings.currency,
+    campaign: campaignView(campaign),
     latestPayment: payment
       ? {
           id: payment.id,
@@ -173,7 +181,7 @@ export async function getAccount(req) {
 
 /** Whether this visitor may start a conversion at all (used before uploads). */
 export async function canConvert(req) {
-  return isPro(req.user) || (await freeUsesFor(req)) < FREE_USES;
+  return isPro(req.user) || (await freeUsesFor(req)) < freeLimit(req);
 }
 
 /**
@@ -195,12 +203,12 @@ export async function reserveUse(req, imageCount) {
     return { ok: true, release: async () => {} };
   }
 
-  if ((await freeUsesFor(req)) >= FREE_USES) {
+  if ((await freeUsesFor(req)) >= freeLimit(req)) {
     return {
       ok: false,
       status: 402,
       code: "QUOTA_EXHAUSTED",
-      message: `You've used all ${FREE_USES} free conversions. Upgrade to Pro to keep converting.`,
+      message: `You've used all ${freeLimit(req)} free conversions. Upgrade to Pro to keep converting.`,
     };
   }
 

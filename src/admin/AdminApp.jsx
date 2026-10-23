@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { fetchJson, formatDate, formatMoney } from "../api.js";
 import Modal from "../Modal.jsx";
+import { PasswordInput } from "../AuthModal.jsx";
 import "../Modal.css";
 import "../Account.css";
 import "./Admin.css";
@@ -67,10 +68,10 @@ function AdminLogin({ onLoggedIn, notAdmin }) {
           <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
         </label>
 
-        <label className="form-field">
+        <div className="form-field">
           <span>Password</span>
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" required />
-        </label>
+          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
+        </div>
 
         {error && <p className="form-error">{error}</p>}
 
@@ -231,10 +232,12 @@ function PaymentCard({ payment, settings, onReviewed, onOpenReceipt }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const expected = settings ? settings.price * payment.months : null;
+  // The user was quoted a price (after any sale or promo); fall back to list price.
+  const expected =
+    payment.expectedAmount ?? (settings ? settings.price * payment.months : null);
   const short =
     expected !== null &&
-    payment.currency === settings.currency &&
+    (!settings || payment.currency === settings.currency) &&
     payment.amount + 0.001 < expected;
 
   const act = async (action, body) => {
@@ -277,13 +280,16 @@ function PaymentCard({ payment, settings, onReviewed, onOpenReceipt }) {
             <dd className={short ? "is-short" : ""}>
               {formatMoney(payment.amount, payment.currency)}
               {short && (
-                <small>expected {formatMoney(expected, settings.currency)}</small>
+                <small>expected {formatMoney(expected, payment.currency)}</small>
               )}
             </dd>
           </div>
           <div>
             <dt>Plan</dt>
-            <dd>{payment.months} month{payment.months === 1 ? "" : "s"}</dd>
+            <dd>
+              {payment.months} month{payment.months === 1 ? "" : "s"}
+              {payment.discountLabel && <small className="discount-note">{payment.discountLabel}</small>}
+            </dd>
           </div>
           <div>
             <dt>{GATEWAYS[payment.method] ? `${GATEWAYS[payment.method]} payment ID` : "Transaction ID"}</dt>
@@ -755,10 +761,296 @@ function Settings({ settings, onSaved }) {
 
 // ---------- Shell ----------
 
+// ---------- Promotions ----------
+
+const toInputDate = (iso) => (iso ? iso.slice(0, 16) : "");
+
+function promoStatus(item) {
+  const now = Date.now();
+
+  if (!item.active) return ["Paused", "status-rejected"];
+  if (item.startsAt && new Date(item.startsAt) > now) return ["Scheduled", "status-pending"];
+  if (item.endsAt && new Date(item.endsAt) <= now) return ["Ended", ""];
+  if (item.maxUses != null && item.usedCount >= item.maxUses) return ["Used up", ""];
+  return ["Live", "status-approved"];
+}
+
+function randomCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => alphabet[b % alphabet.length]).join("");
+}
+
+function CampaignForm({ onSaved }) {
+  const blank = { name: "", banner: "", discountPercent: 20, startsAt: "", endsAt: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const save = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      await fetchJson("/api/admin/promotions/campaigns", {
+        method: "POST",
+        json: {
+          ...form,
+          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        },
+      });
+      setForm(blank);
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <form className="form promo-admin-form" onSubmit={save}>
+      <div className="form-row">
+        <label className="form-field"><span>Name</span><input value={form.name} onChange={set("name")} placeholder="New Year Sale" required maxLength={80} /></label>
+        <label className="form-field"><span>Discount %</span><input type="number" min="1" max="100" value={form.discountPercent} onChange={set("discountPercent")} required /></label>
+      </div>
+      <label className="form-field"><span>Banner text (optional)</span><input value={form.banner} onChange={set("banner")} placeholder="🎉 New Year Sale is on!" maxLength={160} /></label>
+      <div className="form-row">
+        <label className="form-field"><span>Starts (optional)</span><input type="datetime-local" value={form.startsAt} onChange={set("startsAt")} /></label>
+        <label className="form-field"><span>Ends (optional)</span><input type="datetime-local" value={form.endsAt} onChange={set("endsAt")} /></label>
+      </div>
+      {error && <p className="form-error">{error}</p>}
+      <button className="btn-primary">Create campaign</button>
+    </form>
+  );
+}
+
+function PromoCodeForm({ onSaved }) {
+  const blank = { code: "", kind: "percent", value: 20, maxUses: "", startsAt: "", endsAt: "" };
+  const [form, setForm] = useState(blank);
+  const [error, setError] = useState("");
+  const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const save = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    try {
+      await fetchJson("/api/admin/promotions/codes", {
+        method: "POST",
+        json: {
+          ...form,
+          startsAt: form.startsAt ? new Date(form.startsAt).toISOString() : null,
+          endsAt: form.endsAt ? new Date(form.endsAt).toISOString() : null,
+        },
+      });
+      setForm(blank);
+      await onSaved();
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  return (
+    <form className="form promo-admin-form" onSubmit={save}>
+      <div className="form-row">
+        <label className="form-field">
+          <span className="field-label-row">
+            Code
+            <button type="button" className="link-btn small" onClick={() => setForm({ ...form, code: randomCode() })}>Generate</button>
+          </span>
+          <input value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="WELCOME20" required maxLength={30} />
+        </label>
+        <label className="form-field">
+          <span>Discount</span>
+          <div className="inline-fields">
+            <input type="number" min="0.01" step="0.01" value={form.value} onChange={set("value")} required />
+            <select value={form.kind} onChange={set("kind")}>
+              <option value="percent">% off</option>
+              <option value="fixed">amount off</option>
+            </select>
+          </div>
+        </label>
+      </div>
+      <div className="form-row">
+        <label className="form-field"><span>Max uses (blank = unlimited)</span><input type="number" min="1" value={form.maxUses} onChange={set("maxUses")} /></label>
+        <label className="form-field"><span>Expires (optional)</span><input type="datetime-local" value={form.endsAt} onChange={set("endsAt")} /></label>
+      </div>
+      <p className="form-hint">Tip: 100% off makes a free-Pro giveaway code.</p>
+      {error && <p className="form-error">{error}</p>}
+      <button className="btn-primary">Create promo code</button>
+    </form>
+  );
+}
+
+function ReferralSettings({ referral, onSaved }) {
+  const [form, setForm] = useState(referral);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => setForm(referral), [referral]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setStatus("saving");
+
+    try {
+      await fetchJson("/api/admin/promotions/referral", { method: "PUT", json: form });
+      await onSaved();
+      setStatus("saved");
+      setTimeout(() => setStatus(""), 1500);
+    } catch (err) {
+      alert(err.message);
+      setStatus("");
+    }
+  };
+
+  const num = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  return (
+    <form className="form promo-admin-form" onSubmit={save}>
+      <label className="toggle-row">
+        <input type="checkbox" checked={form.enabled} onChange={(e) => setForm({ ...form, enabled: e.target.checked })} />
+        <span>Referral programme is on</span>
+      </label>
+      <div className="form-row">
+        <label className="form-field"><span>New user: bonus free conversions</span><input type="number" min="0" max="100" value={form.refereeBonusUses} onChange={num("refereeBonusUses")} /></label>
+        <label className="form-field"><span>New user: % off first Pro plan</span><input type="number" min="0" max="100" value={form.refereeDiscountPercent} onChange={num("refereeDiscountPercent")} /></label>
+      </div>
+      <label className="form-field"><span>Referrer: free Pro days when their friend first pays</span><input type="number" min="0" max="365" value={form.referrerBonusDays} onChange={num("referrerBonusDays")} /></label>
+      <button className="btn-primary" disabled={status === "saving"}>
+        {status === "saving" ? "Saving…" : status === "saved" ? <>{Icon.check} Saved</> : "Save referral settings"}
+      </button>
+    </form>
+  );
+}
+
+function Promotions() {
+  const [data, setData] = useState(null);
+  const load = useCallback(() => fetchJson("/api/admin/promotions").then(setData), []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const act = async (url, method = "POST", question) => {
+    if (question && !confirm(question)) return;
+
+    try {
+      await fetchJson(url, { method, json: method === "POST" ? {} : undefined });
+      await load();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  if (!data) return <p className="muted">Loading…</p>;
+
+  const r = data.referral;
+
+  return (
+    <div className="promotions">
+      <section className="promo-section">
+        <header>
+          <h2>{Icon.megaphone} Sale campaigns</h2>
+          <p className="form-hint">A % off every plan for everyone while it runs, with a banner at the top of the app.</p>
+        </header>
+
+        <div className="promo-grid">
+          <CampaignForm onSaved={load} />
+
+          <div className="promo-list">
+            {data.campaigns.length === 0 && <p className="muted pad">No campaigns yet.</p>}
+            {data.campaigns.map((c) => {
+              const [label, tone] = promoStatus(c);
+
+              return (
+                <div key={c.id} className="promo-item">
+                  <div>
+                    <strong>{c.name} · {c.discountPercent}% off</strong>
+                    <span>
+                      {c.startsAt ? formatDate(c.startsAt, SHORT_DATE) : "Now"} → {c.endsAt ? formatDate(c.endsAt, SHORT_DATE) : "no end"}
+                    </span>
+                  </div>
+                  <span className={`status-pill ${tone}`}>{label}</span>
+                  <div className="row-actions">
+                    <button className="btn-small" onClick={() => act(`/api/admin/promotions/campaigns/${c.id}/toggle`)}>{c.active ? "Pause" : "Resume"}</button>
+                    <button className="btn-small is-danger" onClick={() => act(`/api/admin/promotions/campaigns/${c.id}`, "DELETE", `Delete the campaign "${c.name}"?`)}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="promo-section">
+        <header>
+          <h2>{Icon.tag} Promo codes</h2>
+          <p className="form-hint">Codes users type at checkout. Each user can use a code once; uses count when a payment is completed.</p>
+        </header>
+
+        <div className="promo-grid">
+          <PromoCodeForm onSaved={load} />
+
+          <div className="promo-list">
+            {data.codes.length === 0 && <p className="muted pad">No promo codes yet.</p>}
+            {data.codes.map((p) => {
+              const [label, tone] = promoStatus(p);
+
+              return (
+                <div key={p.id} className="promo-item">
+                  <div>
+                    <strong className="mono">{p.code}</strong>
+                    <span>
+                      {p.kind === "percent" ? `${p.value}% off` : `${p.value} off`} · used {p.usedCount}{p.maxUses != null ? ` / ${p.maxUses}` : ""}
+                      {p.endsAt && ` · until ${formatDate(p.endsAt, SHORT_DATE)}`}
+                    </span>
+                  </div>
+                  <span className={`status-pill ${tone}`}>{label}</span>
+                  <div className="row-actions">
+                    <button className="btn-small" onClick={() => act(`/api/admin/promotions/codes/${p.id}/toggle`)}>{p.active ? "Pause" : "Resume"}</button>
+                    <button className="btn-small is-danger" onClick={() => act(`/api/admin/promotions/codes/${p.id}`, "DELETE", `Delete the code ${p.code}?`)}>Delete</button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section className="promo-section">
+        <header>
+          <h2>{Icon.gift} Referral programme</h2>
+          <p className="form-hint">Every user has an invite link under their account menu → Invite friends.</p>
+        </header>
+
+        <div className="promo-grid">
+          <ReferralSettings referral={r} onSaved={load} />
+
+          <div className="promo-list">
+            <div className="stats compact">
+              <StatCard label="Signed up via invites" value={r.signups} icon={Icon.users} />
+              <StatCard label="Invited users who paid" value={r.rewarded} tone="pro" icon={Icon.sparkle} />
+            </div>
+            <h3 className="list-title">Top referrers</h3>
+            {r.topReferrers.length === 0 && <p className="muted pad">No referrals yet.</p>}
+            {r.topReferrers.map((t) => (
+              <div key={t.email} className="promo-item">
+                <div><strong>{t.name}</strong><span>{t.email}</span></div>
+                <span className="muted">{t.joined} joined · {t.rewarded} paid</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 const TABS = [
   { id: "overview", label: "Overview", icon: Icon.aperture },
   { id: "payments", label: "Payments", icon: Icon.receipt },
   { id: "users", label: "Users", icon: Icon.users },
+  { id: "promotions", label: "Promotions", icon: Icon.megaphone },
   { id: "settings", label: "Settings", icon: Icon.settings },
 ];
 
@@ -851,6 +1143,7 @@ export default function AdminApp() {
         {current.id === "overview" && <Overview stats={stats} settings={settings} goTo={goTo} />}
         {current.id === "payments" && <Payments settings={settings} onChanged={loadStats} />}
         {current.id === "users" && <Users onChanged={loadStats} />}
+        {current.id === "promotions" && <Promotions />}
         {current.id === "settings" && <Settings settings={settings} onSaved={loadSettings} />}
       </main>
     </div>

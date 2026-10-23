@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { formatDate } from "./api.js";
 
-export default function AccountMenu({ account, onSignIn, onBilling, onSignOut }) {
+export default function AccountMenu({ account, onSignIn, onBilling, onInvite, onSignOut }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -79,6 +79,11 @@ export default function AccountMenu({ account, onSignIn, onBilling, onSignOut })
               {account.plan === "pro" ? "Extend Pro & billing" : pending ? "Payment status" : "Upgrade to Pro"}
             </button>
           )}
+
+          <button role="menuitem" onClick={run(onInvite)}>
+            {Icon.gift}
+            Invite friends
+          </button>
 
           {user.role === "admin" && (
             <a role="menuitem" href="/admin">

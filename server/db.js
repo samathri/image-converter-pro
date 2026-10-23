@@ -125,6 +125,69 @@ const SCHEMA = `
 
   -- Login rate limiting has to live in the database: on Vercel every
   -- request can be served by a different instance.
+  -- Offers: timed sale campaigns and promo codes.
+  CREATE TABLE IF NOT EXISTS campaigns (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    banner TEXT,
+    discount_percent DOUBLE PRECISION NOT NULL,
+    starts_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  CREATE TABLE IF NOT EXISTS promo_codes (
+    id SERIAL PRIMARY KEY,
+    code TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL DEFAULT 'percent',
+    value DOUBLE PRECISION NOT NULL,
+    max_uses INTEGER,
+    used_count INTEGER NOT NULL DEFAULT 0,
+    starts_at TIMESTAMPTZ,
+    ends_at TIMESTAMPTZ,
+    active BOOLEAN NOT NULL DEFAULT true,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  -- Columns added after the first release (safe to re-run).
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT false;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_days_earned INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_uses INTEGER NOT NULL DEFAULT 0;
+
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS list_amount DOUBLE PRECISION;
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount_amount DOUBLE PRECISION NOT NULL DEFAULT 0;
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS expected_amount DOUBLE PRECISION;
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS discount_label TEXT;
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS promo_code_id INTEGER REFERENCES promo_codes(id) ON DELETE SET NULL;
+  ALTER TABLE payments ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
+
+  -- 6-digit codes emailed for signup verification and password reset.
+  -- Only a hash of the code is stored.
+  CREATE TABLE IF NOT EXISTS email_codes (
+    id SERIAL PRIMARY KEY,
+    email TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    code_hash TEXT NOT NULL,
+    payload TEXT,
+    attempts INTEGER NOT NULL DEFAULT 0,
+    expires_at TIMESTAMPTZ NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+
+  CREATE INDEX IF NOT EXISTS email_codes_lookup ON email_codes(email, purpose);
+
+  -- Google / Facebook accounts linked to a user.
+  CREATE TABLE IF NOT EXISTS oauth_accounts (
+    provider TEXT NOT NULL,
+    provider_user_id TEXT NOT NULL,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (provider, provider_user_id)
+  );
+
   CREATE TABLE IF NOT EXISTS rate_limits (
     key TEXT PRIMARY KEY,
     count INTEGER NOT NULL,
@@ -136,10 +199,16 @@ const SCHEMA = `
 let ready;
 
 function driver() {
-  ready ||= createDriver().then(async (d) => {
-    await d.exec(SCHEMA);
-    return d;
-  });
+  ready ||= createDriver()
+    .then(async (d) => {
+      await d.exec(SCHEMA);
+      return d;
+    })
+    .catch((error) => {
+      // Don't keep a failed connection forever: try again on the next request.
+      ready = null;
+      throw error;
+    });
 
   return ready;
 }
@@ -175,12 +244,19 @@ const DEFAULT_SETTINGS = {
   accountName: "",
   accountNumber: "",
   branch: "",
-  instructions:
-    "Use your payment reference as the transfer description so we can match your payment.",
+  instructions: "",
+  // Referral programme (admin → Promotions)
+  referralEnabled: "true",
+  referrerBonusDays: "7",
+  refereeBonusUses: "2",
+  refereeDiscountPercent: "10",
 };
 
-export async function getSettings() {
-  const rows = await query("SELECT key, value FROM settings");
+// Pass q when called inside transaction(): the local database (PGlite) runs
+// one query at a time, so a query outside the transaction would wait forever.
+export async function getSettings(q) {
+  const sql = "SELECT key, value FROM settings";
+  const rows = q ? await q(sql) : await query(sql);
   const stored = Object.fromEntries(rows.map((r) => [r.key, r.value]));
 
   return {

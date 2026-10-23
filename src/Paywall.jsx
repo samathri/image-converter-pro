@@ -47,7 +47,10 @@ export default function Paywall({
   onDevelopFirst,
 }) {
   const copy = getCopy(reason, account, imageCount);
-  const price = formatMoney(account.price, account.currency);
+  // During a sale, show the reduced monthly price next to the normal one.
+  const salePercent = account.campaign?.discountPercent || 0;
+  const listPrice = formatMoney(account.price, account.currency);
+  const price = formatMoney(account.price * (1 - salePercent / 100), account.currency);
   const freeMax = account.maxImages;
   const pending = account.latestPayment?.status === "pending";
   const signedIn = Boolean(account.user);
@@ -111,6 +114,7 @@ export default function Paywall({
               <h3>Monthly plan</h3>
             </div>
             <div className="plan-price">
+              {salePercent > 0 && <s className="plan-was">{listPrice}</s>}
               <strong>{price}</strong>
               <span>/ month</span>
             </div>

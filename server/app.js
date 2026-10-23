@@ -11,6 +11,7 @@ import { authRouter, ensureBootstrapAdmin, loadUser } from "./auth.js";
 import { billingRouter, adminRouter } from "./billing.js";
 import { payhereRouter, payhereNotifyRouter } from "./payhere.js";
 import { paypalRouter } from "./paypal.js";
+import { promoAdminRouter, promoRouter } from "./promotions.js";
 import {
   cleanupTemporaryFiles,
   cronRouter,
@@ -86,6 +87,8 @@ app.use("/api/files", filesRouter);
 app.use("/api/billing/payhere", payhereRouter);
 app.use("/api/billing/paypal", paypalRouter);
 app.use("/api/billing", billingRouter);
+app.use("/api/promo", promoRouter);
+app.use("/api/admin/promotions", promoAdminRouter);
 app.use("/api/admin", adminRouter);
 
 // Converts images the browser already uploaded (see uploads.js) and/or

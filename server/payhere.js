@@ -3,6 +3,7 @@ import express from "express";
 import { getSettings, one, transaction } from "./db.js";
 import { rejectAdminPayments, requireUser } from "./auth.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
+import { onPaymentApproved, quote } from "./promotions.js";
 
 // Docs: https://support.payhere.lk/api-&-mobile-sdk/checkout-api
 const MERCHANT_ID = process.env.PAYHERE_MERCHANT_ID || "";
@@ -117,13 +118,19 @@ payhereRouter.post("/checkout", requireUser, rejectAdminPayments, async (req, re
     }
 
     const settings = await getSettings();
-    const amount = Math.round(settings.price * months * 100) / 100;
+    const price = await quote(req.user, months, req.body.promoCode);
+    const amount = price.total;
+
+    if (amount <= 0) {
+      return res.status(400).json({ message: "This plan is free with your code. Use “Activate Pro” instead." });
+    }
     const orderId = `ICP-${Date.now().toString(36).toUpperCase()}-${crypto.randomBytes(3).toString("hex").toUpperCase()}`;
 
     await one(
-      `INSERT INTO payments (user_id, amount, currency, months, method, order_id, status)
-       VALUES ($1, $2, $3, $4, 'payhere', $5, 'awaiting_payment')`,
-      [req.user.id, amount, settings.currency, months, orderId]
+      `INSERT INTO payments (user_id, amount, currency, months, method, order_id, status,
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
+       VALUES ($1, $2, $3, $4, 'payhere', $5, 'awaiting_payment', $6, $7, $2, $8, $9, $10)`,
+      [req.user.id, amount, settings.currency, months, orderId, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel]
     );
 
     const [firstName, ...rest] = req.user.name.trim().split(/\s+/);
@@ -207,6 +214,7 @@ payhereNotifyRouter.post(
             [String(body.payment_id || ""), String(body.method || ""), payment.id]
           );
 
+          await onPaymentApproved(q, payment);
           await extendPro(payment.user_id, payment.months, q);
           return;
         }

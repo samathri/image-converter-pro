@@ -4,6 +4,7 @@ import { Icon } from "./icons.jsx";
 import Paywall from "./Paywall.jsx";
 import AuthModal from "./AuthModal.jsx";
 import BillingModal from "./BillingModal.jsx";
+import ReferralModal from "./ReferralModal.jsx";
 import AccountMenu from "./AccountMenu.jsx";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
@@ -132,6 +133,7 @@ export default function App() {
   // null | { mode: "login" | "register", reason?: string }
   const [auth, setAuth] = useState(null);
   const [billingOpen, setBillingOpen] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const previousPlan = useRef(null);
   // Read once: the URL is cleaned right after, but effects may re-run.
   const [paymentResult] = useState(() =>
@@ -189,6 +191,16 @@ export default function App() {
       window.removeEventListener("focus", onFocus);
     };
   }, [pendingReview, refreshAccount]);
+
+  // Google/Facebook sign-in problems come back as ?auth_error=...
+  useEffect(() => {
+    const message = new URLSearchParams(window.location.search).get("auth_error");
+
+    if (!message) return;
+
+    history.replaceState(null, "", window.location.pathname);
+    setNotice({ type: "error", title: "Sign-in didn't work", text: message });
+  }, []);
 
   // Coming back from PayPal: capture the payment (once) and show the result.
   useEffect(() => {
@@ -380,6 +392,19 @@ export default function App() {
   const closePaywall = useCallback(() => setPaywall(null), []);
   const closeAuth = useCallback(() => setAuth(null), []);
   const closeBilling = useCallback(() => setBillingOpen(false), []);
+  const closeInvite = useCallback(() => setInviteOpen(false), []);
+
+  // Invite links (?ref=CODE): remember the inviter for when this visitor signs up.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("ref");
+
+    if (!code) return;
+
+    params.delete("ref");
+    history.replaceState(null, "", window.location.pathname + (params.size ? `?${params}` : ""));
+    fetchJson("/api/promo/referral/visit", { method: "POST", json: { code } }).catch(() => {});
+  }, []);
 
   // Pro needs an account: sign up first, then pay.
   const startUpgrade = () => {
@@ -544,6 +569,27 @@ export default function App() {
     <div className="app">
       <div className="grain" aria-hidden="true" />
 
+      {account?.campaign && !account.admin && (
+        <div className="sale-banner">
+          {Icon.megaphone}
+          <span>
+            <strong>{account.campaign.banner || account.campaign.name}</strong>
+            {" · "}
+            {account.campaign.discountPercent}% off Pro
+            {account.campaign.endsAt &&
+              ` until ${formatDate(account.campaign.endsAt, { day: "numeric", month: "short" })}`}
+          </span>
+          {account.plan !== "pro" && (
+            <button
+              type="button"
+              onClick={() => (account.user ? setBillingOpen(true) : setAuth({ mode: "register" }))}
+            >
+              Get the deal
+            </button>
+          )}
+        </div>
+      )}
+
       <header className="topbar">
         <div className="brand">
           <span className="brand-mark">{Icon.aperture}</span>
@@ -569,6 +615,7 @@ export default function App() {
             account={account}
             onSignIn={() => setAuth({ mode: "login" })}
             onBilling={() => setBillingOpen(true)}
+            onInvite={() => setInviteOpen(true)}
             onSignOut={signOut}
           />
 
@@ -938,6 +985,8 @@ https://example.com/image3.webp`}
           onAuthed={handleAuthed}
         />
       )}
+
+      {inviteOpen && account?.user && <ReferralModal onClose={closeInvite} />}
 
       {billingOpen && account?.user && (
         <BillingModal

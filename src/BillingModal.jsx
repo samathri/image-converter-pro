@@ -95,7 +95,7 @@ function submitToPayHere({ action, fields }) {
 }
 
 // PayPal: the server creates an order, then the buyer approves it on PayPal.
-function PayPalForm({ billing, months, total }) {
+function PayPalForm({ months, total, promoCode }) {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -106,7 +106,7 @@ function PayPalForm({ billing, months, total }) {
     try {
       const { url } = await fetchJson("/api/billing/paypal/checkout", {
         method: "POST",
-        json: { months },
+        json: { months, promoCode },
       });
 
       window.location.href = url;
@@ -127,7 +127,7 @@ function PayPalForm({ billing, months, total }) {
   );
 }
 
-function CardForm({ billing, months, total }) {
+function CardForm({ months, total, promoCode }) {
   const [form, setForm] = useState({ phone: "", address: "", city: "", country: "Sri Lanka" });
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -143,7 +143,7 @@ function CardForm({ billing, months, total }) {
     try {
       const checkout = await fetchJson("/api/billing/payhere/checkout", {
         method: "POST",
-        json: { months, ...form },
+        json: { months, promoCode, ...form },
       });
 
       submitToPayHere(checkout);
@@ -186,9 +186,9 @@ function CardForm({ billing, months, total }) {
   );
 }
 
-function BankForm({ account, billing, months, total, onSubmitted }) {
+function BankForm({ account, billing, months, total, amountDue, promoCode, onSubmitted }) {
   const [form, setForm] = useState({
-    amount: String(Math.round(billing.price * months * 100) / 100),
+    amount: String(amountDue),
     transactionRef: "",
     paidOn: today(),
     note: "",
@@ -199,10 +199,10 @@ function BankForm({ account, billing, months, total, onSubmitted }) {
   const receiptInput = useRef(null);
   const bank = billing.bank;
 
-  // Keep the amount in step with the chosen plan length.
+  // Keep the amount in step with the chosen plan and discount.
   useEffect(() => {
-    setForm((f) => ({ ...f, amount: String(Math.round(billing.price * months * 100) / 100) }));
-  }, [months, billing.price]);
+    setForm((f) => ({ ...f, amount: String(amountDue) }));
+  }, [amountDue]);
 
   const update = (key) => (e) =>
     setForm((current) => ({ ...current, [key]: e.target.value }));
@@ -224,7 +224,7 @@ function BankForm({ account, billing, months, total, onSubmitted }) {
 
       await fetchJson("/api/billing/payments", {
         method: "POST",
-        json: { ...form, months, receiptPath },
+        json: { ...form, months, receiptPath, promoCode },
       });
       await onSubmitted();
     } catch (err) {
@@ -329,6 +329,50 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
   const [loadError, setLoadError] = useState("");
   const [months, setMonths] = useState(1);
   const [method, setMethod] = useState(null);
+  const [promoInput, setPromoInput] = useState("");
+  const [promoCode, setPromoCode] = useState("");
+  const [promoError, setPromoError] = useState("");
+  const [quote, setQuote] = useState(null);
+  const [claiming, setClaiming] = useState(false);
+
+  // The server works out the price (sale, promo code or invite discount).
+  useEffect(() => {
+    if (!billing) return;
+
+    let cancelled = false;
+
+    fetchJson(`/api/promo/quote?months=${months}&code=${encodeURIComponent(promoCode)}`)
+      .then((q) => !cancelled && setQuote(q))
+      .catch((err) => {
+        if (cancelled) return;
+        setPromoError(err.message);
+        setPromoCode("");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [billing, months, promoCode]);
+
+  const applyPromo = (e) => {
+    e.preventDefault();
+    setPromoError("");
+    setPromoCode(promoInput.trim().toUpperCase());
+  };
+
+  const claimFree = async () => {
+    setClaiming(true);
+    setPromoError("");
+
+    try {
+      await fetchJson("/api/promo/claim-free", { method: "POST", json: { months, code: promoCode } });
+      await onSubmitted();
+    } catch (err) {
+      setPromoError(err.message);
+    } finally {
+      setClaiming(false);
+    }
+  };
 
   useEffect(() => {
     fetchJson("/api/billing")
@@ -347,7 +391,10 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
   const isPro = account.plan === "pro";
   const methods = billing?.methods;
   const noMethods = methods && !methods.paypal && !methods.payhere && !methods.bank;
-  const total = billing ? formatMoney(billing.price * months, billing.currency) : "";
+  const amountDue = quote ? quote.total : billing ? Math.round(billing.price * months * 100) / 100 : 0;
+  const total = billing ? formatMoney(amountDue, billing.currency) : "";
+  const campaignPercent = account.campaign?.discountPercent || 0;
+  const isFree = quote && quote.total === 0;
 
   return (
     <Modal onClose={onClose} labelledBy="billing-title" className="billing-modal">
@@ -412,12 +459,58 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
                           onClick={() => setMonths(m)}
                         >
                           <strong>{m} mo</strong>
-                          <span>{formatMoney(billing.price * m, billing.currency)}</span>
+                          {campaignPercent > 0 && (
+                            <s>{formatMoney(billing.price * m, billing.currency)}</s>
+                          )}
+                          <span>{formatMoney(billing.price * m * (1 - campaignPercent / 100), billing.currency)}</span>
                         </button>
                       ))}
                     </div>
+
+                    {quote && (
+                      <div className="price-summary">
+                        {quote.discount > 0 && (
+                          <>
+                            <div><span>Price</span><span>{formatMoney(quote.listAmount, quote.currency)}</span></div>
+                            <div className="is-discount">
+                              <span>{Icon.tag} {quote.discountLabel}</span>
+                              <span>−{formatMoney(quote.discount, quote.currency)}</span>
+                            </div>
+                          </>
+                        )}
+                        <div className="is-total"><span>Total</span><span>{formatMoney(quote.total, quote.currency)}</span></div>
+                      </div>
+                    )}
+
+                    <form className="promo-form" onSubmit={applyPromo}>
+                      <input
+                        value={promoInput}
+                        onChange={(e) => setPromoInput(e.target.value.toUpperCase())}
+                        placeholder="Promo code"
+                        aria-label="Promo code"
+                        maxLength={30}
+                      />
+                      {promoCode ? (
+                        <button type="button" className="btn-small" onClick={() => { setPromoCode(""); setPromoInput(""); }}>
+                          Remove
+                        </button>
+                      ) : (
+                        <button className="btn-small" disabled={!promoInput.trim()}>Apply</button>
+                      )}
+                    </form>
+                    {promoError && <p className="form-error">{promoError}</p>}
+                    {quote?.promoBeaten && (
+                      <p className="form-hint">A better discount is already applied.</p>
+                    )}
                   </div>
                 </div>
+
+                {isFree ? (
+                  <button type="button" className="btn-primary" onClick={claimFree} disabled={claiming}>
+                    {claiming ? "Activating…" : <>{Icon.sparkle} Activate Pro free</>}
+                  </button>
+                ) : (
+                <>
 
                 <div className="step">
                   <span className="step-num">2</span>
@@ -479,18 +572,28 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
                     <h3>{method === "bank" ? "Transfer & upload" : `Pay ${total}`}</h3>
 
                     {method === "paypal" && (
-                      <PayPalForm billing={billing} months={months} total={total} />
+                      <PayPalForm months={months} total={total} promoCode={promoCode} />
                     )}
 
                     {method === "payhere" && (
-                      <CardForm billing={billing} months={months} total={total} />
+                      <CardForm months={months} total={total} promoCode={promoCode} />
                     )}
 
                     {method === "bank" && (
-                      <BankForm account={account} billing={billing} months={months} total={total} onSubmitted={onSubmitted} />
+                      <BankForm
+                        account={account}
+                        billing={billing}
+                        months={months}
+                        total={total}
+                        amountDue={amountDue}
+                        promoCode={promoCode}
+                        onSubmitted={onSubmitted}
+                      />
                     )}
                   </div>
                 </div>
+                </>
+                )}
               </div>
             )}
 

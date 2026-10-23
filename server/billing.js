@@ -4,6 +4,7 @@ import { isAdmin, rejectAdminPayments, requireAdmin, requireUser, getUserById, i
 import { payhereStatus } from "./payhere.js";
 import { paypalStatus } from "./paypal.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
+import { onPaymentApproved, quote } from "./promotions.js";
 import { deleteFiles, downloadUrl, readFile, usingBlob, localFilePath } from "./storage.js";
 
 export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
@@ -38,6 +39,9 @@ function paymentView(row) {
     reviewedAt: toIso(row.reviewed_at),
     receiptType: row.receipt_type,
     hasReceipt: Boolean(row.receipt_file),
+    listAmount: row.list_amount == null ? null : Number(row.list_amount),
+    expectedAmount: row.expected_amount == null ? null : Number(row.expected_amount),
+    discountLabel: row.discount_label,
     orderId: row.order_id,
     gatewayMethod: row.gateway_method,
     ...(row.email !== undefined && {
@@ -142,11 +146,18 @@ billingRouter.post("/payments", rejectAdminPayments, async (req, res, next) => {
 
     if (!type) throw httpError(400, "Receipt must be a JPG, PNG, WEBP or PDF file.");
 
+    // The price (with any discount) is worked out on the server.
+    const price = await quote(req.user, months, req.body.promoCode);
+
     const row = await one(
       `INSERT INTO payments
-        (user_id, amount, currency, months, transaction_ref, paid_on, note, receipt_file, receipt_type)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [req.user.id, amount, settings.currency, months, transactionRef, paidOn, note || null, receiptPath, type]
+        (user_id, amount, currency, months, transaction_ref, paid_on, note, receipt_file, receipt_type,
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+      [
+        req.user.id, amount, settings.currency, months, transactionRef, paidOn, note || null, receiptPath, type,
+        price.listAmount, price.discount, price.total, price.promoCodeId, price.campaignId, price.discountLabel,
+      ]
     );
 
     res.status(201).json({ payment: paymentView(row) });
@@ -256,6 +267,7 @@ adminRouter.post("/payments/:id/approve", async (req, res, next) => {
         [months, String(req.body.note || "").trim().slice(0, 500) || null, req.user.id, payment.id]
       );
 
+      await onPaymentApproved(q, payment);
       return { proUntil: await extendPro(payment.user_id, months, q) };
     });
 

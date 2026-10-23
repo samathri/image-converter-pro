@@ -33,6 +33,62 @@
   padding-top: 40px;
 }
 
+.social-buttons {
+  display: grid;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.social-btn:hover {
+  border-color: var(--accent);
+  background: var(--surface-3);
+}
+
+.social-btn svg {
+  width: 20px;
+  height: 20px;
+}
+
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.code-input {
+  font-family: var(--mono) !important;
+  font-size: 26px !important;
+  letter-spacing: 0.5em;
+  text-align: center;
+}
+
 .auth-switch {
   margin-top: 18px;
   text-align: center;
@@ -535,4 +591,172 @@
 
 .btn-paypal:hover:not(:disabled) {
   background: #f2b52e;
+}
+
+/* Plan prices during a sale */
+.plan-options s {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+.price-summary {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--surface-2);
+  font-size: 14px;
+}
+
+.price-summary > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.price-summary .is-discount {
+  color: var(--success);
+}
+
+.price-summary .is-discount span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.price-summary svg {
+  width: 14px;
+  height: 14px;
+}
+
+.price-summary .is-total {
+  padding-top: 6px;
+  border-top: 1px dashed var(--border-strong);
+  font-weight: 700;
+}
+
+.promo-form {
+  display: flex;
+  gap: 8px;
+}
+
+.promo-form input {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  text-transform: uppercase;
+}
+
+.promo-form input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.btn-small {
+  padding: 8px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  border: 1px solid var(--border-strong);
+}
+
+.btn-small:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn-small:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- Referrals ---------- */
+
+.reward-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 10px;
+  margin: 20px 0 16px;
+}
+
+.reward-cards > div {
+  display: grid;
+  gap: 2px;
+  padding: 14px;
+  border-radius: 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.reward-cards > div.is-you {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+}
+
+.reward-cards span {
+  color: var(--accent);
+}
+
+.reward-cards svg {
+  width: 20px;
+  height: 20px;
+}
+
+.reward-cards strong {
+  font-family: var(--serif);
+  font-size: 20px;
+}
+
+.reward-cards small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.invite-link {
+  display: flex;
+  gap: 8px;
+}
+
+.invite-link input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.invite-link .btn-primary {
+  width: auto;
+  padding: 12px 18px;
+}
+
+.share-btn {
+  width: 100%;
+  margin-top: 8px;
+}
+
+.referral-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 18px;
+  text-align: center;
+}
+
+.referral-stats strong {
+  display: block;
+  font-family: var(--serif);
+  font-size: 24px;
+}
+
+.referral-stats span {
+  font-size: 11px;
+  color: var(--muted);
 }

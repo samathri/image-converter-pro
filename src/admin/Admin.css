@@ -675,6 +675,129 @@ button.stat:hover {
   overflow-wrap: anywhere;
 }
 
+/* ---------- Promotions ---------- */
+
+.promotions {
+  display: grid;
+  gap: 28px;
+}
+
+.promo-section > header {
+  margin-bottom: 14px;
+}
+
+.promo-section h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--serif);
+  font-size: 22px;
+}
+
+.promo-section h2 svg {
+  width: 20px;
+  height: 20px;
+  color: var(--accent);
+}
+
+.promo-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.promo-admin-form,
+.promo-list {
+  margin: 0;
+  padding: 18px;
+  border-radius: 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.promo-list {
+  display: grid;
+  gap: 8px;
+}
+
+.promo-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--surface-2);
+}
+
+.promo-item > div:first-child {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.promo-item > div:first-child span {
+  font-size: 12px;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.inline-fields {
+  display: flex;
+  gap: 6px;
+}
+
+.inline-fields input {
+  flex: 1;
+  min-width: 0;
+}
+
+.inline-fields select {
+  width: auto;
+  flex: none;
+}
+
+.inline-fields input {
+  min-width: 80px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 600;
+}
+
+.toggle-row input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+}
+
+.stats.compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.list-title {
+  margin-top: 8px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.discount-note {
+  display: block;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--success);
+}
+
+@media (max-width: 1400px) {
+  .promo-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 /* ---------- Users ---------- */
 
 .search {

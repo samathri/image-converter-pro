@@ -18,6 +18,45 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
+/* ---------- Sale banner ---------- */
+
+.sale-banner {
+  max-width: 1320px;
+  margin: 16px auto 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px 10px 16px;
+  border-radius: 14px;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  font-size: 14px;
+}
+
+.sale-banner > svg {
+  width: 20px;
+  height: 20px;
+  flex: none;
+}
+
+.sale-banner span {
+  flex: 1;
+}
+
+.sale-banner button {
+  flex: none;
+  padding: 7px 14px;
+  border-radius: 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--accent-ink);
+  background: rgba(255, 255, 255, 0.35);
+}
+
+.sale-banner button:hover {
+  background: rgba(255, 255, 255, 0.55);
+}
+
 /* ---------- Top bar ---------- */
 
 .topbar {

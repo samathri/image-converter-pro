@@ -8,6 +8,7 @@ import express from "express";
 import { getSettings, one, transaction } from "./db.js";
 import { rejectAdminPayments, requireUser } from "./auth.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
+import { onPaymentApproved, quote } from "./promotions.js";
 
 const CLIENT_ID = process.env.PAYPAL_CLIENT_ID || "";
 const CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET || "";
@@ -114,12 +115,16 @@ paypalRouter.post("/checkout", rejectAdminPayments, async (req, res, next) => {
     }
 
     const settings = await getSettings();
-    const amount = Math.round(settings.price * months * 100) / 100;
+    const price = await quote(req.user, months, req.body.promoCode);
+    const amount = price.total;
+
+    if (amount <= 0) throw httpError(400, "This plan is free with your code. Use “Activate Pro” instead.");
 
     const payment = await one(
-      `INSERT INTO payments (user_id, amount, currency, months, method, status)
-       VALUES ($1, $2, $3, $4, 'paypal', 'awaiting_payment') RETURNING id`,
-      [req.user.id, amount, settings.currency, months]
+      `INSERT INTO payments (user_id, amount, currency, months, method, status,
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
+       VALUES ($1, $2, $3, $4, 'paypal', 'awaiting_payment', $5, $6, $2, $7, $8, $9) RETURNING id`,
+      [req.user.id, amount, settings.currency, months, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel]
     );
 
     const base = publicUrl(req);
@@ -223,6 +228,7 @@ paypalRouter.post("/capture", async (req, res, next) => {
          admin_note = 'Paid with PayPal' WHERE id = $2`,
         [capture.id, payment.id]
       );
+      await onPaymentApproved(q, payment);
       await extendPro(payment.user_id, payment.months, q);
       return true;
     });
