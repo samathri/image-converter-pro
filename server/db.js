@@ -253,6 +253,10 @@ const DEFAULT_SETTINGS = {
   referrerBonusDays: "7",
   refereeBonusUses: "2",
   refereeDiscountPercent: "10",
+  // % off for longer plans (admin → Promotions)
+  planDiscount3: "0",
+  planDiscount6: "0",
+  planDiscount12: "0",
 };
 
 // Pass q when called inside transaction(): the local database (PGlite) runs

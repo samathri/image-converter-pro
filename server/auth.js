@@ -509,7 +509,9 @@ authRouter.get("/oauth/:provider", (req, res) => {
 
   const state = crypto.randomBytes(16).toString("base64url");
   const verifier = crypto.randomBytes(32).toString("base64url");
-  const value = `${name}.${state}.${verifier}`;
+  // "upgrade" = the user started from a Buy Pro button: reopen billing afterwards.
+  const next = req.query.next === "upgrade" ? "upgrade" : "home";
+  const value = `${name}.${state}.${verifier}.${next}`;
 
   // Remember state (and the PKCE verifier) in a short-lived signed cookie.
   res.append("Set-Cookie", [`${OAUTH_COOKIE}=${value}.${signValue(value)}`, ...cookieFlags(req), "Max-Age=600"].join("; "));
@@ -578,8 +580,8 @@ authRouter.get("/oauth/:provider/callback", async (req, res) => {
     if (req.query.error) return fail("Sign-in was cancelled.");
 
     const raw = readCookie(req, OAUTH_COOKIE) || "";
-    const [cookieProvider, state, verifier, signature] = raw.split(".");
-    const value = `${cookieProvider}.${state}.${verifier}`;
+    const [cookieProvider, state, verifier, next, signature] = raw.split(".");
+    const value = `${cookieProvider}.${state}.${verifier}.${next}`;
 
     if (cookieProvider !== name || !state || state !== req.query.state || signature !== signValue(value)) {
       return fail("Sign-in expired. Please try again.");
@@ -595,6 +597,8 @@ authRouter.get("/oauth/:provider/callback", async (req, res) => {
     );
 
     if (!user) user = await one("SELECT * FROM users WHERE email = $1", [email]);
+
+    const isNew = !user;
 
     if (!user) {
       user = await createUser({
@@ -613,7 +617,10 @@ authRouter.get("/oauth/:provider/callback", async (req, res) => {
     );
 
     await startSession(req, res, user.id);
-    res.redirect(user.role === "admin" ? "/admin" : "/");
+    // New accounts (and sign-ins from a Buy Pro button) land on the purchase window.
+    const wantsPro = (isNew || next === "upgrade") && !isPro(user);
+
+    res.redirect(user.role === "admin" ? "/admin" : wantsPro ? "/?upgrade=1" : "/");
   } catch (error) {
     console.error(`[oauth:${name}]`, error.message);
     fail(error.public ? error.message : "Sign-in failed. Please try again.");

@@ -760,3 +760,23 @@
   font-size: 11px;
   color: var(--muted);
 }
+
+/* "Save 10%" tag on longer plans */
+.plan-options button {
+  position: relative;
+}
+
+.plan-save {
+  position: absolute;
+  top: -9px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--accent-ink);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+}

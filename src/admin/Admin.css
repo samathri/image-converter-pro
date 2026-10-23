@@ -762,6 +762,23 @@ button.stat:hover {
   min-width: 80px;
 }
 
+.plan-discount-form {
+  max-width: 640px;
+}
+
+.plan-discount-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inline-fields .suffix {
+  align-self: center;
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
 .toggle-row {
   display: flex;
   align-items: center;

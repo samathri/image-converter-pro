@@ -458,24 +458,34 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
                           className={months === m ? "is-active" : ""}
                           onClick={() => setMonths(m)}
                         >
+                          {(billing.planDiscounts?.[m] || 0) > 0 && (
+                            <em className="plan-save">Save {billing.planDiscounts[m]}%</em>
+                          )}
                           <strong>{m} mo</strong>
-                          {campaignPercent > 0 && (
+                          {(campaignPercent > 0 || (billing.planDiscounts?.[m] || 0) > 0) && (
                             <s>{formatMoney(billing.price * m, billing.currency)}</s>
                           )}
-                          <span>{formatMoney(billing.price * m * (1 - campaignPercent / 100), billing.currency)}</span>
+                          <span>
+                            {formatMoney(
+                              billing.price * m * (1 - (billing.planDiscounts?.[m] || 0) / 100) * (1 - campaignPercent / 100),
+                              billing.currency
+                            )}
+                          </span>
                         </button>
                       ))}
                     </div>
 
                     {quote && (
                       <div className="price-summary">
-                        {quote.discount > 0 && (
+                        {quote.lines?.length > 0 && (
                           <>
                             <div><span>Price</span><span>{formatMoney(quote.listAmount, quote.currency)}</span></div>
-                            <div className="is-discount">
-                              <span>{Icon.tag} {quote.discountLabel}</span>
-                              <span>−{formatMoney(quote.discount, quote.currency)}</span>
-                            </div>
+                            {quote.lines.map((line) => (
+                              <div className="is-discount" key={line.kind}>
+                                <span>{Icon.tag} {line.label}</span>
+                                <span>−{formatMoney(line.amount, quote.currency)}</span>
+                              </div>
+                            ))}
                           </>
                         )}
                         <div className="is-total"><span>Total</span><span>{formatMoney(quote.total, quote.currency)}</span></div>

@@ -251,7 +251,12 @@ export default function App() {
   }, [pendingReview, refreshAccount]);
 
   // Reminder emails link to /?renew=1: open billing (or sign-in first).
-  const [renewRequested] = useState(() => new URLSearchParams(window.location.search).has("renew"));
+  // ?renew=1 comes from reminder emails, ?upgrade=1 from Google sign-up.
+  const [renewRequested] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    return params.has("renew") || params.has("upgrade");
+  });
 
   useEffect(() => {
     if (!renewRequested || !account) return;
@@ -483,16 +488,25 @@ export default function App() {
     if (account?.user) {
       setBillingOpen(true);
     } else {
-      setAuth({ mode: "register" });
+      setAuth({ mode: "register", intent: "upgrade" });
     }
   };
 
-  const handleAuthed = async () => {
+  // After signing in: new accounts, and anyone who came from a Buy Pro
+  // button or hit the free limit, go straight to the purchase window.
+  const handleAuthed = async ({ created = false } = {}) => {
+    const intent = auth?.intent;
+
     setAuth(null);
 
     const updated = await refreshAccount();
 
-    if (updated?.user && updated.plan !== "pro" && (outOfFilm || overLimit || auth?.mode === "register")) {
+    if (
+      updated?.user &&
+      updated.plan !== "pro" &&
+      !updated.admin &&
+      (created || intent === "upgrade" || outOfFilm || overLimit)
+    ) {
       setBillingOpen(true);
     }
   };
@@ -652,7 +666,7 @@ export default function App() {
           {account.plan !== "pro" && (
             <button
               type="button"
-              onClick={() => (account.user ? setBillingOpen(true) : setAuth({ mode: "register" }))}
+              onClick={() => (account.user ? setBillingOpen(true) : setAuth({ mode: "register", intent: "upgrade" }))}
             >
               Get the deal
             </button>
@@ -1052,6 +1066,7 @@ https://example.com/image3.webp`}
       {auth && (
         <AuthModal
           initialMode={auth.mode}
+          intent={auth.intent}
           reason={auth.reason}
           onClose={closeAuth}
           onAuthed={handleAuthed}

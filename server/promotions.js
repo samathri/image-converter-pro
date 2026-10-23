@@ -76,24 +76,45 @@ async function findPromo(code, user) {
 
 // ---------- Prices ----------
 
+/** % off for longer plans, e.g. { 1: 0, 3: 10, 6: 15, 12: 25 }. */
+export async function planDiscounts(q) {
+  const s = await getSettings(q);
+  const pct = (v) => Math.min(90, Math.max(0, Number(v) || 0));
+
+  return { 1: 0, 3: pct(s.planDiscount3), 6: pct(s.planDiscount6), 12: pct(s.planDiscount12) };
+}
+
 /**
- * Works out what a user pays for `months` of Pro. The single best
- * discount wins: sale campaign, promo code, or referral first-purchase discount.
+ * Works out what a user pays for `months` of Pro:
+ * 1. plan price = monthly price x months, minus the longer-plan discount;
+ * 2. then the single best of: sale campaign, promo code, invite discount.
  */
 export async function quote(user, months, promoCode) {
   if (!PLAN_MONTHS.includes(Number(months))) throw httpError(400, "Choose a valid plan length.");
 
   const settings = await getSettings();
   const listAmount = round2(settings.price * months);
+  const lines = [];
+
+  // 1. Longer-plan discount
+  const planPercent = (await planDiscounts())[months] || 0;
+  const planDiscount = round2((listAmount * planPercent) / 100);
+
+  if (planDiscount > 0) {
+    lines.push({ kind: "plan", label: `${months}-month plan (${planPercent}% off)`, amount: planDiscount });
+  }
+
+  const base = round2(listAmount - planDiscount);
   const options = [];
 
+  // 2. Best of campaign / promo / invite, on the plan price
   const campaign = await activeCampaign();
 
   if (campaign) {
     options.push({
       kind: "campaign",
       label: `${campaign.name} (${Number(campaign.discount_percent)}% off)`,
-      amount: round2((listAmount * Number(campaign.discount_percent)) / 100),
+      amount: round2((base * Number(campaign.discount_percent)) / 100),
       campaignId: campaign.id,
     });
   }
@@ -101,13 +122,12 @@ export async function quote(user, months, promoCode) {
   const promo = await findPromo(promoCode, user);
 
   if (promo) {
-    const amount =
-      promo.kind === "percent" ? (listAmount * Number(promo.value)) / 100 : Number(promo.value);
+    const amount = promo.kind === "percent" ? (base * Number(promo.value)) / 100 : Number(promo.value);
 
     options.push({
       kind: "promo",
-      label: `Code ${promo.code}`,
-      amount: round2(Math.min(listAmount, amount)),
+      label: promo.kind === "percent" ? `Code ${promo.code} (${Number(promo.value)}% off)` : `Code ${promo.code}`,
+      amount: round2(Math.min(base, amount)),
       promoCodeId: promo.id,
     });
   }
@@ -120,24 +140,29 @@ export async function quote(user, months, promoCode) {
       options.push({
         kind: "referral",
         label: `Friend invite (${ref.refereeDiscountPercent}% off first purchase)`,
-        amount: round2((listAmount * ref.refereeDiscountPercent) / 100),
+        amount: round2((base * ref.refereeDiscountPercent) / 100),
       });
     }
   }
 
   const best = options.sort((a, b) => b.amount - a.amount)[0] || null;
-  const discount = best ? Math.min(listAmount, best.amount) : 0;
+
+  if (best && best.amount > 0) lines.push({ kind: best.kind, label: best.label, amount: Math.min(base, best.amount) });
+
+  const discount = round2(lines.reduce((sum, l) => sum + l.amount, 0));
 
   return {
     months: Number(months),
     currency: settings.currency,
     listAmount,
-    discount,
-    discountLabel: best?.label || null,
+    lines, // each discount, for the price breakdown
+    planPercent,
+    discount, // total of all discounts (stored with the payment)
+    discountLabel: lines.map((l) => l.label).join(" + ") || null,
     discountKind: best?.kind || null,
-    total: round2(listAmount - discount),
-    promoCodeId: best?.promoCodeId ?? null,
-    campaignId: best?.campaignId ?? null,
+    total: round2(Math.max(0, listAmount - discount)),
+    promoCodeId: best?.kind === "promo" ? best.promoCodeId : null,
+    campaignId: best?.kind === "campaign" ? best.campaignId : null,
     promoApplied: Boolean(promo),
     promoBeaten: Boolean(promo) && best?.kind !== "promo",
   };
@@ -336,7 +361,7 @@ const dateOrNull = (v) => {
 
 promoAdminRouter.get("/", async (req, res, next) => {
   try {
-    const [campaigns, codes, ref, refStats, topReferrers] = await Promise.all([
+    const [campaigns, codes, ref, refStats, topReferrers, plans] = await Promise.all([
       query("SELECT * FROM campaigns ORDER BY id DESC"),
       query("SELECT * FROM promo_codes ORDER BY id DESC"),
       referralSettings(),
@@ -351,6 +376,7 @@ promoAdminRouter.get("/", async (req, res, next) => {
          FROM users u JOIN users r ON r.id = u.referred_by
          GROUP BY r.id ORDER BY joined DESC LIMIT 10`
       ),
+      planDiscounts(),
     ]);
 
     res.json({
@@ -371,6 +397,7 @@ promoAdminRouter.get("/", async (req, res, next) => {
         active: p.active,
       })),
       referral: { ...ref, ...refStats, topReferrers },
+      planDiscounts: plans,
     });
   } catch (error) {
     next(error);
@@ -461,6 +488,22 @@ promoAdminRouter.delete("/codes/:id", async (req, res, next) => {
     await one("UPDATE payments SET promo_code_id = NULL WHERE promo_code_id = $1", [Number(req.params.id)]);
     await one("DELETE FROM promo_codes WHERE id = $1", [Number(req.params.id)]);
     res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+promoAdminRouter.put("/plans", async (req, res, next) => {
+  try {
+    const pct = (v) => Math.min(90, Math.max(0, Math.round(Number(v) || 0)));
+
+    await saveSettings({
+      planDiscount3: pct(req.body[3]),
+      planDiscount6: pct(req.body[6]),
+      planDiscount12: pct(req.body[12]),
+    });
+
+    res.json(await planDiscounts());
   } catch (error) {
     next(error);
   }

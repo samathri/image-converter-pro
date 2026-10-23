@@ -4,7 +4,7 @@ import { isAdmin, rejectAdminPayments, requireAdmin, requireUser, getUserById, i
 import { payhereStatus } from "./payhere.js";
 import { paypalStatus } from "./paypal.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
-import { onPaymentApproved, quote } from "./promotions.js";
+import { onPaymentApproved, planDiscounts, quote } from "./promotions.js";
 import { deleteFiles, downloadUrl, readFile, usingBlob, localFilePath } from "./storage.js";
 
 export const RECEIPT_MAX_BYTES = 5 * 1024 * 1024;
@@ -79,6 +79,7 @@ billingRouter.get("/", async (req, res, next) => {
       price: settings.price,
       currency: settings.currency,
       planMonths: PLAN_MONTHS,
+      planDiscounts: await planDiscounts(),
       methods: {
         paypal: paypal.enabled,
         paypalSandbox: paypal.sandbox,

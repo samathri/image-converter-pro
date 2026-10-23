@@ -13,7 +13,7 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
   - **PayHere (optional):** supported too, but PayHere only approves root domains, so it needs your own domain rather than `*.vercel.app`.
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
 - **Accounts:** sign up with email (a 6-digit code is emailed to verify it) or Google. Show/hide password, and "Forgot password" with an emailed code.
-- **Offers:** timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (invite links, bonus free conversions and a first-purchase discount for friends, free Pro days for the referrer).
+- **Offers:** longer-plan discounts (% off 3, 6 and 12-month plans, shown as "Save X%"; other discounts apply on top), timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (invite links, bonus free conversions and a first-purchase discount for friends, free Pro days for the referrer).
 - **Pro expiry:** users see a banner and an amber badge in the last 7 days and after it ends, and get reminder emails 7 days before, 1 day before and on the day it ends (once each per Pro period; renewing resets them). Admins see each user's expiry date and days left, and an "ending this week" list on the Overview.
 - **Admin dashboard** (`/admin`): review payments and receipts, manage users (grant or revoke Pro, make admin, delete), run promotions, set the price and bank details. Admins always have unlimited access; the owner account (`ADMIN_EMAIL`) can't be demoted or deleted.
 

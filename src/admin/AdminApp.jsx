@@ -951,6 +951,53 @@ function PromoCodeForm({ onSaved }) {
   );
 }
 
+function PlanDiscounts({ discounts, onSaved }) {
+  const [form, setForm] = useState(discounts);
+  const [status, setStatus] = useState("");
+
+  useEffect(() => setForm(discounts), [discounts]);
+
+  const save = async (e) => {
+    e.preventDefault();
+    setStatus("saving");
+
+    try {
+      await fetchJson("/api/admin/promotions/plans", { method: "PUT", json: form });
+      await onSaved();
+      setStatus("saved");
+      setTimeout(() => setStatus(""), 1500);
+    } catch (err) {
+      alert(err.message);
+      setStatus("");
+    }
+  };
+
+  return (
+    <form className="form promo-admin-form plan-discount-form" onSubmit={save}>
+      <div className="plan-discount-grid">
+        {[3, 6, 12].map((m) => (
+          <label key={m} className="form-field">
+            <span>{m} months</span>
+            <div className="inline-fields">
+              <input
+                type="number"
+                min="0"
+                max="90"
+                value={form[m]}
+                onChange={(e) => setForm({ ...form, [m]: e.target.value })}
+              />
+              <span className="suffix">% off</span>
+            </div>
+          </label>
+        ))}
+      </div>
+      <button className="btn-primary" disabled={status === "saving"}>
+        {status === "saving" ? "Saving…" : status === "saved" ? <>{Icon.check} Saved</> : "Save plan discounts"}
+      </button>
+    </form>
+  );
+}
+
 function ReferralSettings({ referral, onSaved }) {
   const [form, setForm] = useState(referral);
   const [status, setStatus] = useState("");
@@ -1017,6 +1064,14 @@ function Promotions() {
 
   return (
     <div className="promotions">
+      <section className="promo-section">
+        <header>
+          <h2>{Icon.sparkle} Longer-plan discounts</h2>
+          <p className="form-hint">Always on. Sales, promo codes and invite discounts apply on top. Use 0 for no discount.</p>
+        </header>
+        <PlanDiscounts discounts={data.planDiscounts} onSaved={load} />
+      </section>
+
       <section className="promo-section">
         <header>
           <h2>{Icon.megaphone} Sale campaigns</h2>

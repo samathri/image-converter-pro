@@ -63,7 +63,7 @@ const SUBMIT_LABEL = {
   reset: "Save new password",
 };
 
-export default function AuthModal({ initialMode = "register", reason, onClose, onAuthed }) {
+export default function AuthModal({ initialMode = "register", reason, intent, onClose, onAuthed }) {
   const [mode, setMode] = useState(initialMode);
   const [form, setForm] = useState({ name: "", email: "", password: "", code: "" });
   const [error, setError] = useState("");
@@ -109,7 +109,7 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
         go("verify");
       } else if (mode === "verify") {
         await fetchJson("/api/auth/register/verify", { method: "POST", json: { email: form.email, code: form.code } });
-        await onAuthed();
+        await onAuthed({ created: true });
       } else if (mode === "forgot") {
         await fetchJson("/api/auth/password/forgot", { method: "POST", json: { email: form.email } });
         go("reset");
@@ -155,7 +155,7 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
         {showSocial && (
           <div className="social-buttons">
             {providers.google && (
-              <a className="social-btn" href="/api/auth/oauth/google">
+              <a className="social-btn" href={`/api/auth/oauth/google${intent === "upgrade" ? "?next=upgrade" : ""}`}>
                 {Icon.google} Continue with Google
               </a>
             )}
