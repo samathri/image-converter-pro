@@ -24,13 +24,3 @@ export async function extendPro(userId, months, q) {
   return toIso(until);
 }
 
-/** Adds days of Pro (referral rewards), from the current expiry if still active. */
-export async function extendProDays(userId, days, q) {
-  const run = q || (async (sql, params) => [await one(sql, params)]);
-  const [user] = await run("SELECT pro_until FROM users WHERE id = $1 FOR UPDATE", [userId]);
-  const start = isPro(user) ? new Date(user.pro_until) : new Date();
-  const until = new Date(start.getTime() + days * 864e5);
-
-  await run("UPDATE users SET pro_until = $1 WHERE id = $2", [until, userId]);
-  return toIso(until);
-}

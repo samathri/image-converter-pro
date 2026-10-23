@@ -153,11 +153,12 @@ billingRouter.post("/payments", rejectAdminPayments, async (req, res, next) => {
     const row = await one(
       `INSERT INTO payments
         (user_id, amount, currency, months, transaction_ref, paid_on, note, receipt_file, receipt_type,
-         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15) RETURNING *`,
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label, reward_applied)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16) RETURNING *`,
       [
         req.user.id, amount, settings.currency, months, transactionRef, paidOn, note || null, receiptPath, type,
         price.listAmount, price.discount, price.total, price.promoCodeId, price.campaignId, price.discountLabel,
+        price.rewardApplied,
       ]
     );
 

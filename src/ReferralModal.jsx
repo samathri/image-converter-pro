@@ -12,7 +12,7 @@ export default function ReferralModal({ onClose }) {
     fetchJson("/api/promo/referral").then(setData).catch((err) => setError(err.message));
   }, []);
 
-  const link = data ? `${window.location.origin}/?ref=${data.code}` : "";
+  const link = data?.code ? `${window.location.origin}/?ref=${data.code}` : "";
 
   const copy = async () => {
     try {
@@ -27,11 +27,13 @@ export default function ReferralModal({ onClose }) {
   const share = () =>
     navigator.share?.({
       title: "Image Converter Pro",
-      text: "Convert and compress images in seconds. Get bonus free conversions with my invite:",
+      text: "Convert and compress images in seconds:",
       url: link,
     }).catch(() => {});
 
-  const r = data?.rewards;
+  const per = data?.friendsPerReward || 5;
+  const progress = data ? (data.towardNext / per) * 100 : 0;
+  const needed = data ? per - data.towardNext : per;
 
   return (
     <Modal onClose={onClose} labelledBy="referral-title" className="referral-modal">
@@ -42,33 +44,40 @@ export default function ReferralModal({ onClose }) {
         {error && <p className="form-error">{error}</p>}
         {!data && !error && <p className="modal-lead">Loading…</p>}
 
-        {data && !data.enabled && <p className="modal-lead">The invite programme is paused right now.</p>}
+        {data && !data.eligible && (
+          <p className="modal-lead">Buy a Pro plan to get your invite link.</p>
+        )}
 
-        {data?.enabled && (
+        {data?.eligible && !data.enabled && (
+          <p className="modal-lead">Invites are paused right now.</p>
+        )}
+
+        {data?.eligible && data.enabled && (
           <>
-            <div className="reward-cards">
-              {r.refereeBonusUses > 0 && (
-                <div>
-                  <span>{Icon.gift}</span>
-                  <strong>+{r.refereeBonusUses} free</strong>
-                  <small>conversions for your friend</small>
-                </div>
-              )}
-              {r.refereeDiscountPercent > 0 && (
-                <div>
-                  <span>{Icon.tag}</span>
-                  <strong>{r.refereeDiscountPercent}% off</strong>
-                  <small>their first Pro plan</small>
-                </div>
-              )}
-              {r.referrerBonusDays > 0 && (
-                <div className="is-you">
-                  <span>{Icon.sparkle}</span>
-                  <strong>+{r.referrerBonusDays} days Pro</strong>
-                  <small>for you when they upgrade</small>
-                </div>
-              )}
+            <div className="reward-rule">
+              <span>{Icon.gift}</span>
+              <p>
+                Get <strong>{data.rewardPercent}% off your next payment</strong> for every{" "}
+                <strong>{per} friends</strong> who join with your link.
+              </p>
             </div>
+
+            <div className="reward-progress">
+              <div className="reward-progress-head">
+                <span>{data.towardNext} of {per} friends</span>
+                <span>{needed} more for {data.rewardPercent}% off</span>
+              </div>
+              <div className="reward-bar" role="progressbar" aria-valuenow={data.towardNext} aria-valuemin={0} aria-valuemax={per}>
+                <span style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+
+            {data.available > 0 && (
+              <p className="reward-ready">
+                {Icon.check} You have {data.available} reward{data.available === 1 ? "" : "s"} ready.
+                {" "}{data.rewardPercent}% comes off your next payment automatically.
+              </p>
+            )}
 
             <div className="invite-link">
               <input value={link} readOnly onFocus={(e) => e.target.select()} aria-label="Your invite link" />
@@ -85,8 +94,8 @@ export default function ReferralModal({ onClose }) {
 
             <div className="referral-stats">
               <div><strong>{data.joined}</strong><span>friends joined</span></div>
-              <div><strong>{data.rewarded}</strong><span>upgraded</span></div>
-              <div><strong>{data.daysEarned}</strong><span>Pro days earned</span></div>
+              <div><strong>{data.earned}</strong><span>rewards earned</span></div>
+              <div><strong>{data.available}</strong><span>ready to use</span></div>
             </div>
           </>
         )}

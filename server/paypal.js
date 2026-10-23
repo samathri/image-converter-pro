@@ -122,9 +122,9 @@ paypalRouter.post("/checkout", rejectAdminPayments, async (req, res, next) => {
 
     const payment = await one(
       `INSERT INTO payments (user_id, amount, currency, months, method, status,
-         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
-       VALUES ($1, $2, $3, $4, 'paypal', 'awaiting_payment', $5, $6, $2, $7, $8, $9) RETURNING id`,
-      [req.user.id, amount, settings.currency, months, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel]
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label, reward_applied)
+       VALUES ($1, $2, $3, $4, 'paypal', 'awaiting_payment', $5, $6, $2, $7, $8, $9, $10) RETURNING id`,
+      [req.user.id, amount, settings.currency, months, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel, price.rewardApplied]
     );
 
     const base = publicUrl(req);

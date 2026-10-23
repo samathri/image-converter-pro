@@ -80,10 +80,12 @@ export default function AccountMenu({ account, onSignIn, onBilling, onInvite, on
             </button>
           )}
 
-          <button role="menuitem" onClick={run(onInvite)}>
-            {Icon.gift}
-            Invite friends
-          </button>
+          {account.canInvite && (
+            <button role="menuitem" onClick={run(onInvite)}>
+              {Icon.gift}
+              Invite friends
+            </button>
+          )}
 
           {user.role === "admin" && (
             <a role="menuitem" href="/admin">

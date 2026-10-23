@@ -5,7 +5,7 @@ import crypto from "crypto";
 import express from "express";
 import { getSettings, one, query, saveSettings, toIso, transaction } from "./db.js";
 import { cookieFlags, isAdmin, readCookie, requireAdmin, requireUser, setReferralHook } from "./auth.js";
-import { extendPro, extendProDays, PLAN_MONTHS } from "./plans.js";
+import { extendPro, PLAN_MONTHS } from "./plans.js";
 
 const REF_COOKIE = "icp_ref";
 const httpError = (status, message) => Object.assign(new Error(message), { status });
@@ -18,9 +18,44 @@ export async function referralSettings(q) {
 
   return {
     enabled: s.referralEnabled !== "false",
-    referrerBonusDays: Math.max(0, Number(s.referrerBonusDays) || 0),
-    refereeBonusUses: Math.max(0, Number(s.refereeBonusUses) || 0),
-    refereeDiscountPercent: Math.min(100, Math.max(0, Number(s.refereeDiscountPercent) || 0)),
+    friendsPerReward: Math.min(100, Math.max(1, Math.round(Number(s.referralFriendsPerReward) || 5))),
+    rewardPercent: Math.min(90, Math.max(0, Number(s.referralRewardPercent) || 0)),
+  };
+}
+
+/** Only users who have bought a plan can invite friends. */
+export async function canInvite(user) {
+  if (!user || user.role !== "user") return false;
+
+  return Boolean(
+    await one("SELECT id FROM payments WHERE user_id = $1 AND status = 'approved' LIMIT 1", [user.id])
+  );
+}
+
+/**
+ * Referral rewards: one "X% off your next payment" for every N friends who
+ * joined with the user's link. Rewards held by payments still in progress
+ * count as taken, so one reward can't be used twice.
+ */
+export async function referralRewards(userId) {
+  const ref = await referralSettings();
+  const row = await one(
+    `SELECT
+       (SELECT COUNT(*)::int FROM users WHERE referred_by = $1) AS joined,
+       (SELECT referral_rewards_used FROM users WHERE id = $1) AS used,
+       (SELECT COUNT(*)::int FROM payments WHERE user_id = $1 AND reward_applied
+          AND (status = 'pending' OR (status = 'awaiting_payment' AND created_at > now() - interval '6 hours'))) AS reserved`,
+    [userId]
+  );
+  const earned = Math.floor(row.joined / ref.friendsPerReward);
+
+  return {
+    ...ref,
+    joined: row.joined,
+    earned,
+    used: row.used ?? 0,
+    available: ref.enabled ? Math.max(0, earned - (row.used ?? 0) - row.reserved) : 0,
+    towardNext: row.joined % ref.friendsPerReward,
   };
 }
 
@@ -132,22 +167,26 @@ export async function quote(user, months, promoCode) {
     });
   }
 
-  if (user?.referred_by) {
-    const ref = await referralSettings();
-    const hasPaid = await one("SELECT id FROM payments WHERE user_id = $1 AND status = 'approved'", [user.id]);
-
-    if (ref.enabled && ref.refereeDiscountPercent > 0 && !hasPaid) {
-      options.push({
-        kind: "referral",
-        label: `Friend invite (${ref.refereeDiscountPercent}% off first purchase)`,
-        amount: round2((base * ref.refereeDiscountPercent) / 100),
-      });
-    }
-  }
-
   const best = options.sort((a, b) => b.amount - a.amount)[0] || null;
 
   if (best && best.amount > 0) lines.push({ kind: best.kind, label: best.label, amount: Math.min(base, best.amount) });
+
+  // 3. A referral reward the user earned (5 friends = 5% off), on top of everything.
+  let rewardApplied = false;
+
+  if (user) {
+    const rewards = await referralRewards(user.id);
+    const remaining = round2(listAmount - lines.reduce((sum, l) => sum + l.amount, 0));
+
+    if (rewards.available > 0 && rewards.rewardPercent > 0 && remaining > 0) {
+      lines.push({
+        kind: "reward",
+        label: `Referral reward (${rewards.rewardPercent}% off)`,
+        amount: round2((remaining * rewards.rewardPercent) / 100),
+      });
+      rewardApplied = true;
+    }
+  }
 
   const discount = round2(lines.reduce((sum, l) => sum + l.amount, 0));
 
@@ -165,6 +204,7 @@ export async function quote(user, months, promoCode) {
     campaignId: best?.kind === "campaign" ? best.campaignId : null,
     promoApplied: Boolean(promo),
     promoBeaten: Boolean(promo) && best?.kind !== "promo",
+    rewardApplied, // stored with the payment; the reward is used up when it's approved
   };
 }
 
@@ -191,28 +231,12 @@ export async function onPaymentApproved(q, payment) {
     await q("UPDATE promo_codes SET used_count = used_count + 1 WHERE id = $1", [payment.promo_code_id]);
   }
 
-  const [payer] = await q(
-    "SELECT id, referred_by, referral_rewarded FROM users WHERE id = $1 FOR UPDATE",
-    [payment.user_id]
-  );
-
-  if (!payer?.referred_by || payer.referral_rewarded) return;
-
-  const ref = await referralSettings(q);
-
-  await q("UPDATE users SET referral_rewarded = true WHERE id = $1", [payer.id]);
-
-  if (ref.enabled && ref.referrerBonusDays > 0) {
-    const [referrer] = await q("SELECT id, role FROM users WHERE id = $1", [payer.referred_by]);
-
-    if (referrer && referrer.role !== "admin") {
-      await extendProDays(referrer.id, ref.referrerBonusDays, q);
-      await q("UPDATE users SET referral_days_earned = referral_days_earned + $1 WHERE id = $2", [
-        ref.referrerBonusDays,
-        referrer.id,
-      ]);
-    }
+  if (payment.reward_applied) {
+    await q("UPDATE users SET referral_rewards_used = referral_rewards_used + 1 WHERE id = $1", [payment.user_id]);
   }
+
+  // For the admin stats: an invited user has paid.
+  await q("UPDATE users SET referral_rewarded = true WHERE id = $1 AND referred_by IS NOT NULL", [payment.user_id]);
 }
 
 // ---------- Referral codes ----------
@@ -252,15 +276,11 @@ setReferralHook(async (req, user) => {
 
   if (!ref.enabled) return;
 
-  const referrer = await one("SELECT id, email FROM users WHERE referral_code = $1", [code]);
+  const referrer = await one("SELECT * FROM users WHERE referral_code = $1", [code]);
 
-  if (!referrer || referrer.id === user.id) return;
+  if (!referrer || referrer.id === user.id || !(await canInvite(referrer))) return;
 
-  await one("UPDATE users SET referred_by = $1, bonus_uses = bonus_uses + $2 WHERE id = $3", [
-    referrer.id,
-    ref.refereeBonusUses,
-    user.id,
-  ]);
+  await one("UPDATE users SET referred_by = $1 WHERE id = $2", [referrer.id, user.id]);
 
   req.res?.append("Set-Cookie", [`${REF_COOKIE}=`, ...cookieFlags(req), "Max-Age=0"].join("; "));
 });
@@ -274,7 +294,11 @@ promoRouter.post("/referral/visit", async (req, res, next) => {
   try {
     const code = String(req.body.code || "").trim().toUpperCase();
 
-    if (/^[A-Z0-9]{4,20}$/.test(code) && (await one("SELECT id FROM users WHERE referral_code = $1", [code]))) {
+    const referrer = /^[A-Z0-9]{4,20}$/.test(code)
+      ? await one("SELECT * FROM users WHERE referral_code = $1", [code])
+      : null;
+
+    if (referrer && (await canInvite(referrer))) {
       res.append("Set-Cookie", [`${REF_COOKIE}=${code}`, ...cookieFlags(req), `Max-Age=${30 * 86400}`].join("; "));
       return res.json({ ok: true });
     }
@@ -287,22 +311,14 @@ promoRouter.post("/referral/visit", async (req, res, next) => {
 
 promoRouter.get("/referral", requireUser, async (req, res, next) => {
   try {
-    const code = await ensureReferralCode(req.user);
-    const ref = await referralSettings();
-    const stats = await one(
-      `SELECT COUNT(*)::int AS joined, COUNT(*) FILTER (WHERE referral_rewarded)::int AS rewarded
-       FROM users WHERE referred_by = $1`,
-      [req.user.id]
-    );
-    const me = await one("SELECT referral_days_earned FROM users WHERE id = $1", [req.user.id]);
+    if (!(await canInvite(req.user))) {
+      return res.json({ eligible: false });
+    }
 
     res.json({
-      code,
-      enabled: ref.enabled,
-      rewards: ref,
-      joined: stats.joined,
-      rewarded: stats.rewarded,
-      daysEarned: me.referral_days_earned,
+      eligible: true,
+      code: await ensureReferralCode(req.user),
+      ...(await referralRewards(req.user.id)),
     });
   } catch (error) {
     next(error);
@@ -329,10 +345,10 @@ promoRouter.post("/claim-free", requireUser, async (req, res, next) => {
     const until = await transaction(async (t) => {
       const [payment] = await t(
         `INSERT INTO payments (user_id, amount, currency, months, method, status, transaction_ref, paid_on,
-           reviewed_at, admin_note, list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
+           reviewed_at, admin_note, list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label, reward_applied)
          VALUES ($1, 0, $2, $3, 'promo', 'approved', $4, to_char(now(), 'YYYY-MM-DD'), now(), 'Free with promo code',
-           $5, $6, 0, $7, $8, $9) RETURNING *`,
-        [req.user.id, q.currency, q.months, q.discountLabel, q.listAmount, q.discount, q.promoCodeId, q.campaignId, q.discountLabel]
+           $5, $6, 0, $7, $8, $9, $10) RETURNING *`,
+        [req.user.id, q.currency, q.months, q.discountLabel, q.listAmount, q.discount, q.promoCodeId, q.campaignId, q.discountLabel, q.rewardApplied]
       );
 
       await onPaymentApproved(t, payment);
@@ -515,9 +531,8 @@ promoAdminRouter.put("/referral", async (req, res, next) => {
 
     await saveSettings({
       referralEnabled: req.body.enabled ? "true" : "false",
-      referrerBonusDays: n(req.body.referrerBonusDays, 365),
-      refereeBonusUses: n(req.body.refereeBonusUses, 100),
-      refereeDiscountPercent: n(req.body.refereeDiscountPercent, 100),
+      referralFriendsPerReward: Math.max(1, n(req.body.friendsPerReward, 100)),
+      referralRewardPercent: n(req.body.rewardPercent, 90),
     });
 
     res.json(await referralSettings());

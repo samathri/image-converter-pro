@@ -3,7 +3,7 @@ import net from "net";
 import { getSettings, one, toIso, transaction } from "./db.js";
 import { cookieFlags, isAdmin, isPro, publicUser, readCookie } from "./auth.js";
 import { secret } from "./secret.js";
-import { activeCampaign, campaignView } from "./promotions.js";
+import { activeCampaign, campaignView, canInvite } from "./promotions.js";
 
 export const FREE_USES = 3;
 export const FREE_MAX_IMAGES = 5;
@@ -171,6 +171,7 @@ export async function getAccount(req) {
     price: settings.price,
     currency: settings.currency,
     campaign: campaignView(campaign),
+    canInvite: await canInvite(req.user),
     latestPayment: payment
       ? {
           id: payment.id,

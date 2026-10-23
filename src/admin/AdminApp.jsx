@@ -1028,10 +1028,9 @@ function ReferralSettings({ referral, onSaved }) {
         <span>Referral programme is on</span>
       </label>
       <div className="form-row">
-        <label className="form-field"><span>New user: bonus free conversions</span><input type="number" min="0" max="100" value={form.refereeBonusUses} onChange={num("refereeBonusUses")} /></label>
-        <label className="form-field"><span>New user: % off first Pro plan</span><input type="number" min="0" max="100" value={form.refereeDiscountPercent} onChange={num("refereeDiscountPercent")} /></label>
+        <label className="form-field"><span>Friends who join, per reward</span><input type="number" min="1" max="100" value={form.friendsPerReward} onChange={num("friendsPerReward")} /></label>
+        <label className="form-field"><span>Reward: % off the next payment</span><input type="number" min="0" max="90" value={form.rewardPercent} onChange={num("rewardPercent")} /></label>
       </div>
-      <label className="form-field"><span>Referrer: free Pro days when their friend first pays</span><input type="number" min="0" max="365" value={form.referrerBonusDays} onChange={num("referrerBonusDays")} /></label>
       <button className="btn-primary" disabled={status === "saving"}>
         {status === "saving" ? "Saving…" : status === "saved" ? <>{Icon.check} Saved</> : "Save referral settings"}
       </button>
@@ -1144,7 +1143,7 @@ function Promotions() {
       <section className="promo-section">
         <header>
           <h2>{Icon.gift} Referral programme</h2>
-          <p className="form-hint">Every user has an invite link under their account menu → Invite friends.</p>
+          <p className="form-hint">Users who have bought Pro get an invite link (account menu → Invite friends).</p>
         </header>
 
         <div className="promo-grid">

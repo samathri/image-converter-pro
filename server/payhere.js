@@ -128,9 +128,9 @@ payhereRouter.post("/checkout", requireUser, rejectAdminPayments, async (req, re
 
     await one(
       `INSERT INTO payments (user_id, amount, currency, months, method, order_id, status,
-         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label)
-       VALUES ($1, $2, $3, $4, 'payhere', $5, 'awaiting_payment', $6, $7, $2, $8, $9, $10)`,
-      [req.user.id, amount, settings.currency, months, orderId, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel]
+         list_amount, discount_amount, expected_amount, promo_code_id, campaign_id, discount_label, reward_applied)
+       VALUES ($1, $2, $3, $4, 'payhere', $5, 'awaiting_payment', $6, $7, $2, $8, $9, $10, $11)`,
+      [req.user.id, amount, settings.currency, months, orderId, price.listAmount, price.discount, price.promoCodeId, price.campaignId, price.discountLabel, price.rewardApplied]
     );
 
     const [firstName, ...rest] = req.user.name.trim().split(/\s+/);
