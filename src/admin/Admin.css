@@ -742,6 +742,12 @@ button.stat:hover {
   gap: 6px;
 }
 
+.role-chip.is-you {
+  margin-left: 4px;
+  color: var(--muted);
+  background: var(--surface-3);
+}
+
 .row-actions select {
   padding: 6px 8px;
   font-size: 13px;

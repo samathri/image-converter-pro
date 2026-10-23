@@ -304,6 +304,8 @@ adminRouter.get("/users", async (req, res, next) => {
         freeUses: u.free_uses,
         createdAt: toIso(u.created_at),
         paidCount: u.paid_count,
+        isOwner: isOwnerAccount(u),
+        isYou: u.id === req.user.id,
       })),
     });
   } catch (error) {
@@ -331,6 +333,62 @@ adminRouter.post("/users/:id/revoke", async (req, res, next) => {
     const row = await one("UPDATE users SET pro_until = NULL WHERE id = $1 RETURNING id", [Number(req.params.id)]);
 
     if (!row) throw httpError(404, "User not found.");
+    res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// The account in ADMIN_EMAIL is the site owner: it can't be demoted or deleted
+// (it would be re-created as admin on the next start anyway).
+function isOwnerAccount(user) {
+  const owner = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
+
+  return Boolean(owner) && user.email === owner;
+}
+
+// Loads a user that the signed-in admin is allowed to change.
+async function manageableUser(req, action) {
+  const user = await getUserById(Number(req.params.id));
+
+  if (!user) throw httpError(404, "User not found.");
+  if (user.id === req.user.id) throw httpError(400, `You can't ${action} your own account.`);
+  if (isOwnerAccount(user)) throw httpError(400, `The owner account (ADMIN_EMAIL) can't be ${action === "delete" ? "deleted" : "changed"}.`);
+
+  return user;
+}
+
+adminRouter.post("/users/:id/role", async (req, res, next) => {
+  try {
+    const role = String(req.body.role);
+
+    if (!["admin", "user"].includes(role)) throw httpError(400, "Role must be admin or user.");
+
+    const user = await manageableUser(req, "change the role of");
+
+    await one("UPDATE users SET role = $1 WHERE id = $2", [role, user.id]);
+    res.json({ ok: true, role });
+  } catch (error) {
+    next(error);
+  }
+});
+
+adminRouter.delete("/users/:id", async (req, res, next) => {
+  try {
+    const user = await manageableUser(req, "delete");
+    const receipts = await query(
+      "SELECT receipt_file FROM payments WHERE user_id = $1 AND receipt_file IS NOT NULL",
+      [user.id]
+    );
+
+    await transaction(async (q) => {
+      // Keep other users' payment history intact if this was a reviewer.
+      await q("UPDATE payments SET reviewed_by = NULL WHERE reviewed_by = $1", [user.id]);
+      // Payments and sessions are removed with the user (ON DELETE CASCADE).
+      await q("DELETE FROM users WHERE id = $1", [user.id]);
+    });
+
+    await deleteFiles(receipts.map((r) => r.receipt_file)).catch(() => {});
     res.json({ ok: true });
   } catch (error) {
     next(error);

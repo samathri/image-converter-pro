@@ -143,12 +143,6 @@ export default function Paywall({
             {account.usesLeft} left)
           </button>
         )}
-
-        <p className="paywall-fine">
-          {signedIn
-            ? "Pro unlocks as soon as an admin confirms your payment."
-            : "Create an account, pay by bank transfer, and Pro unlocks once confirmed."}
-        </p>
       </div>
     </Modal>
   );

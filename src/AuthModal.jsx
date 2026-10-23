@@ -47,12 +47,7 @@ export default function AuthModal({ initialMode = "register", reason, onClose, o
         <h2 id="auth-title">
           {isRegister ? "Create your account" : "Sign in"}
         </h2>
-        <p className="modal-lead">
-          {reason ||
-            (isRegister
-              ? "You need an account to buy Pro. Your free rolls come with you."
-              : "Sign in to manage your Pro plan.")}
-        </p>
+        {reason && <p className="modal-lead">{reason}</p>}
 
         <form className="form" onSubmit={submit}>
           {isRegister && (

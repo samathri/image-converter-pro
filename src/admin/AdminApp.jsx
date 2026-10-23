@@ -435,12 +435,15 @@ function Payments({ settings, onChanged }) {
 function UserRow({ user, onChanged }) {
   const [months, setMonths] = useState(1);
   const [busy, setBusy] = useState(false);
+  const isAdminRow = user.role === "admin";
+  // You, and the owner account from ADMIN_EMAIL, can't be changed here.
+  const locked = user.isYou || user.isOwner;
 
-  const act = async (path, body) => {
+  const act = async (path, init) => {
     setBusy(true);
 
     try {
-      await fetchJson(`/api/admin/users/${user.id}/${path}`, { method: "POST", json: body });
+      await fetchJson(`/api/admin/users/${user.id}${path}`, init);
       await onChanged();
     } catch (err) {
       alert(err.message);
@@ -449,15 +452,34 @@ function UserRow({ user, onChanged }) {
     }
   };
 
+  const changeRole = (role) => {
+    const question =
+      role === "admin"
+        ? `Make ${user.email} an admin? They will be able to manage users and payments.`
+        : `Remove admin rights from ${user.email}?`;
+
+    if (confirm(question)) act("/role", { method: "POST", json: { role } });
+  };
+
+  const remove = () => {
+    if (confirm(`Delete ${user.email}?
+
+Their account, payments and receipts are removed permanently. This can't be undone.`)) {
+      act("", { method: "DELETE" });
+    }
+  };
+
   return (
     <tr>
       <td>
         <strong>{user.name}</strong>
         <span>{user.email}</span>
-        {user.role === "admin" && <em className="role-chip">admin</em>}
+        {user.isOwner && <em className="role-chip">owner</em>}
+        {!user.isOwner && isAdminRow && <em className="role-chip">admin</em>}
+        {user.isYou && <em className="role-chip is-you">you</em>}
       </td>
       <td>
-        {user.role === "admin" ? (
+        {isAdminRow ? (
           <span className="status-pill status-approved">Admin · unlimited</span>
         ) : user.proUntil ? (
           <span className="status-pill status-approved">
@@ -472,30 +494,43 @@ function UserRow({ user, onChanged }) {
       <td>{user.paidCount}</td>
       <td>{formatDate(user.createdAt, SHORT_DATE)}</td>
       <td>
-        {user.role === "admin" ? (
+        {isAdminRow ? (
           <span className="muted">Full access</span>
-        ) : (
-        <div className="row-actions">
-          <select value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-label="Months">
-            {PLAN_MONTHS.map((m) => (
-              <option key={m} value={m}>+{m} mo</option>
-            ))}
-          </select>
-          <button className="btn-small" disabled={busy} onClick={() => act("grant", { months })}>
-            Grant
+        ) : user.proUntil ? (
+          <button
+            className="btn-small is-danger"
+            disabled={busy}
+            onClick={() => {
+              if (confirm(`Remove Pro from ${user.email}?`)) act("/revoke", { method: "POST", json: {} });
+            }}
+          >
+            Revoke Pro
           </button>
-          {user.proUntil && (
-            <button
-              className="btn-small is-danger"
-              disabled={busy}
-              onClick={() => {
-                if (confirm(`Remove Pro from ${user.email}?`)) act("revoke");
-              }}
-            >
-              Revoke
+        ) : (
+          <div className="row-actions">
+            <select value={months} onChange={(e) => setMonths(Number(e.target.value))} aria-label="Months">
+              {PLAN_MONTHS.map((m) => (
+                <option key={m} value={m}>{m} mo</option>
+              ))}
+            </select>
+            <button className="btn-small" disabled={busy} onClick={() => act("/grant", { method: "POST", json: { months } })}>
+              Grant Pro
             </button>
-          )}
-        </div>
+          </div>
+        )}
+      </td>
+      <td>
+        {locked ? (
+          <span className="muted">—</span>
+        ) : (
+          <div className="row-actions">
+            <button className="btn-small" disabled={busy} onClick={() => changeRole(isAdminRow ? "user" : "admin")}>
+              {isAdminRow ? "Make user" : "Make admin"}
+            </button>
+            <button className="btn-small is-danger" disabled={busy} onClick={remove} aria-label={`Delete ${user.email}`}>
+              Delete
+            </button>
+          </div>
         )}
       </td>
     </tr>
@@ -547,6 +582,7 @@ function Users({ onChanged }) {
                 <th>Payments</th>
                 <th>Joined</th>
                 <th>Pro access</th>
+                <th>Account</th>
               </tr>
             </thead>
             <tbody>
@@ -703,10 +739,6 @@ function Settings({ settings, onSaved }) {
           {field("accountName", "Account name")}
           {field("accountNumber", "Account number")}
         </div>
-        <label className="form-field">
-          <span>Instructions</span>
-          <textarea value={form.instructions} onChange={(e) => setForm({ ...form, instructions: e.target.value })} maxLength={1000} />
-        </label>
       </section>
 
       <PayPalStatus status={settings.paypal} currency={form.currency} />

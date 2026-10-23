@@ -118,23 +118,11 @@ function PayPalForm({ billing, months, total }) {
 
   return (
     <div className="form method-form">
-      <p className="form-hint">
-        You&apos;ll be taken to PayPal to pay with your PayPal account or a
-        card. Pro unlocks as soon as you&apos;re back.
-      </p>
-
       {error && <p className="form-error">{error}</p>}
 
       <button type="button" className="btn-primary btn-paypal" onClick={pay} disabled={busy}>
         {busy ? "Opening PayPal…" : <>Pay {total} with PayPal {Icon.arrow}</>}
       </button>
-
-      {billing.methods.paypalSandbox && (
-        <p className="secure-note">
-          <strong>Test mode:</strong> log in with your PayPal <em>sandbox</em>{" "}
-          buyer account. No real money is charged.
-        </p>
-      )}
     </div>
   );
 }
@@ -167,10 +155,6 @@ function CardForm({ billing, months, total }) {
 
   return (
     <form className="form method-form" onSubmit={pay}>
-      <p className="form-hint">
-        PayHere asks for these details to process your card securely.
-      </p>
-
       <label className="form-field">
         <span>Phone number</span>
         <input type="tel" value={form.phone} onChange={update("phone")} placeholder="07X XXX XXXX" autoComplete="tel" required />
@@ -198,14 +182,6 @@ function CardForm({ billing, months, total }) {
       <button className="btn-primary" disabled={busy}>
         {busy ? "Opening PayHere…" : <>{Icon.lock} Pay {total} securely {Icon.arrow}</>}
       </button>
-
-      <p className="secure-note">
-        You&apos;ll be taken to PayHere&apos;s secure page. Pro unlocks the
-        moment your payment goes through.
-        {billing.methods.payhereSandbox && (
-          <strong> Test mode: no real money is charged.</strong>
-        )}
-      </p>
     </form>
   );
 }
@@ -286,7 +262,6 @@ function BankForm({ account, billing, months, total, onSubmitted }) {
           <strong>{billing.payRef}</strong>
           <CopyButton value={billing.payRef} />
         </div>
-        <small>{bank.instructions}</small>
       </div>
 
       <h4>Then upload your receipt</h4>
@@ -392,11 +367,7 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
 
             <span className="eyebrow">Payment received</span>
             <h2 id="billing-title">Your Pro pass is in the developing tray</h2>
-            <p className="modal-lead">
-              An admin is checking your bank transfer. Pro unlocks
-              automatically as soon as it&apos;s confirmed, usually within a
-              few hours. You can close this window.
-            </p>
+            <p className="modal-lead">Pro unlocks as soon as your transfer is confirmed.</p>
 
             <PaymentHistory payments={billing.payments} />
           </div>
@@ -408,8 +379,8 @@ export default function BillingModal({ account, onClose, onSubmitted }) {
             <h2 id="billing-title">{isPro ? "You're Pro" : "Get your Pro pass"}</h2>
             <p className="modal-lead">
               {isPro
-                ? `Your plan is active until ${formatDate(account.proUntil)}. Pay again any time to add more months.`
-                : "Pay by card for instant access, or by bank transfer with no fees."}
+                ? `Active until ${formatDate(account.proUntil)}.`
+                : "Unlimited conversions, bigger batches."}
             </p>
 
             {latest?.status === "rejected" && (
