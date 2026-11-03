@@ -1801,3 +1801,26 @@ button.roll-meter:hover {
   width: 14px;
   height: 14px;
 }
+
+.notice-download {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 9px 14px;
+  max-width: 100%;
+  border-radius: 11px;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.notice-download svg {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}

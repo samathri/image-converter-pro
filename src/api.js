@@ -123,8 +123,12 @@ export async function downloadFile(url, filename) {
     if (!response.ok) throw new Error();
     saveBlob(await response.blob(), filename);
   } catch {
-    // If the storage host doesn't allow fetch, let the browser open it.
-    window.location.href = url;
+    // If the storage host doesn't allow fetch, open it in a new tab
+    // (so the app, and its Download button, stay open).
+    const tab = window.open(url, "_blank");
+
+    if (tab) tab.opener = null;
+    else window.location.href = url;
   }
 }
 

@@ -720,6 +720,8 @@ export default function App() {
         title: "Developed!",
         text: `${filename} (${formatBytes(result.size)}) is downloading.${rollsText}`,
         failedUrls,
+        // Kept so the file can be downloaded again (or if the browser blocked it).
+        download: { url: result.downloadUrl, filename },
       });
     } catch (error) {
       if (error.code === "QUOTA_EXHAUSTED" || error.code === "TOO_MANY_IMAGES") {
@@ -1158,6 +1160,15 @@ https://example.com/image3.webp`}
                 <div>
                   <strong>{notice.title}</strong>
                   <p>{notice.text}</p>
+                  {notice.download && (
+                    <button
+                      type="button"
+                      className="notice-download"
+                      onClick={() => downloadFile(notice.download.url, notice.download.filename)}
+                    >
+                      {Icon.download} Download {notice.download.filename}
+                    </button>
+                  )}
                   {notice.failedUrls?.length > 0 && (
                     <>
                       <p>These URLs couldn&apos;t be downloaded:</p>

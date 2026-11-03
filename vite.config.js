@@ -6,7 +6,8 @@ export default defineConfig({
 
   server: {
     proxy: {
-      "/api": "http://localhost:3001",
+      // Keep the browser's Host header: the API rejects POSTs whose Origin doesn't match it.
+      "/api": { target: "http://localhost:3001", changeOrigin: false },
     },
   },
 
