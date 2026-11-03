@@ -6,7 +6,7 @@ import { one } from "./db.js";
 import { isPro, requireUser } from "./auth.js";
 
 const API_KEY = process.env.GEMINI_API_KEY || "";
-const MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+const MODEL = process.env.GEMINI_MODEL || "gemini-flash-lite-latest";
 // GEMINI_API_BASE is only for automated tests against a fake Gemini server.
 const API_BASE = process.env.GEMINI_API_BASE || "https://generativelanguage.googleapis.com";
 // Per user per day, so one account can't use up the free Gemini quota.
