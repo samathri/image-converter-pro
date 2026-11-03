@@ -106,8 +106,6 @@ export default function AltTextPanel({ files, setFiles, account, useNames, onUse
     }
   };
 
-  if (files.length === 0) return null;
-
   const rows = done.map((f) => ({ name: f.ai.name, alt: f.ai.alt }));
 
   return (
@@ -118,15 +116,20 @@ export default function AltTextPanel({ files, setFiles, account, useNames, onUse
           <h3>
             Names &amp; alt text <span className="pro-tag">Pro</span>
           </h3>
-          <p>AI looks at each photo and writes a file name and alt text.</p>
+          <p>
+            {files.length === 0
+              ? "Add images above, and AI writes a file name and alt text for each one."
+              : "AI looks at each photo and writes a file name and alt text."}
+          </p>
         </div>
 
-        {todo.length > 0 ? (
+        {todo.length > 0 || files.length === 0 ? (
           <button
             type="button"
             className="ai-generate"
             onClick={() => generate(todo)}
-            disabled={running || (pro && account.ai === false)}
+            // Free users can always click it to see what Pro offers.
+            disabled={running || (pro && (account.ai === false || files.length === 0))}
           >
             {running ? (
               "Writing…"
