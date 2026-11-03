@@ -256,16 +256,21 @@ export default function App() {
     }
   }, [theme]);
 
-  const refreshAccount = useCallback(
-    () =>
-      fetchJson("/api/me")
-        .then((data) => {
-          setAccount(data);
-          return data;
-        })
-        .catch(() => null),
-    []
-  );
+  // Retries a few times, so a slow start (or a blip) doesn't leave the page without an account.
+  const refreshAccount = useCallback(async () => {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        const data = await fetchJson("/api/me");
+
+        setAccount(data);
+        return data;
+      } catch {
+        await new Promise((r) => setTimeout(r, 1500 * (attempt + 1)));
+      }
+    }
+
+    return null;
+  }, []);
 
   // Load the account once Clerk knows who's signed in, and again when that changes.
   useEffect(() => {
@@ -697,8 +702,6 @@ export default function App() {
         },
       });
 
-      await downloadFile(result.downloadUrl, result.filename);
-
       const filename = result.filename;
       const failedUrls = result.failedUrls;
       const updated = await fetchJson("/api/me").catch(() => null);
@@ -718,9 +721,9 @@ export default function App() {
       setNotice({
         type: failedUrls.length > 0 ? "warn" : "success",
         title: "Developed!",
-        text: `${filename} (${formatBytes(result.size)}) is downloading.${rollsText}`,
+        text: `${filename} (${formatBytes(result.size)}) is ready.${rollsText}`,
         failedUrls,
-        // Kept so the file can be downloaded again (or if the browser blocked it).
+        // Nothing downloads until the user clicks Download.
         download: { url: result.downloadUrl, filename },
       });
     } catch (error) {
@@ -1149,7 +1152,7 @@ https://example.com/image3.webp`}
                 ? `Uses 1 of your ${account.usesLeft} free roll${account.usesLeft === 1 ? "" : "s"} · up to ${freeLimit} images`
                 : outputCount > 1
                   ? "Multiple results download as a single .zip"
-                  : "Your result downloads automatically"}
+                  : "Download your result when it's ready"}
             </p>
 
             {notice && (
