@@ -49,8 +49,8 @@ async function overDailyLimit(userId) {
   return row.count > DAILY_LIMIT;
 }
 
-async function describeImage(base64, mimeType) {
-  const response = await fetch(
+function callGemini(base64, mimeType) {
+  return fetch(
     `${API_BASE}/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`,
     {
       method: "POST",
@@ -74,10 +74,20 @@ async function describeImage(base64, mimeType) {
       signal: AbortSignal.timeout(30_000),
     }
   );
+}
+
+async function describeImage(base64, mimeType) {
+  let response = await callGemini(base64, mimeType);
+
+  // 503 = Gemini is overloaded for a moment: try once more.
+  if (response.status === 503) {
+    await new Promise((r) => setTimeout(r, 1500));
+    response = await callGemini(base64, mimeType);
+  }
 
   const data = await response.json().catch(() => ({}));
 
-  if (response.status === 429) {
+  if (response.status === 429 || response.status === 503) {
     throw httpError(429, "The AI is busy right now. Please wait a minute and try again.");
   }
 
