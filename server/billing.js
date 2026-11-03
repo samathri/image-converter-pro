@@ -1,6 +1,6 @@
 import express from "express";
 import { getSettings, one, query, saveSettings, toIso, transaction } from "./db.js";
-import { isAdmin, rejectAdminPayments, requireAdmin, requireUser, getUserById, isPro, publicUser } from "./auth.js";
+import { deleteClerkUser, isAdmin, ownerEmail, rejectAdminPayments, requireAdmin, requireUser, getUserById, isPro, publicUser } from "./auth.js";
 import { payhereStatus } from "./payhere.js";
 import { paypalStatus } from "./paypal.js";
 import { extendPro, PLAN_MONTHS } from "./plans.js";
@@ -363,11 +363,9 @@ adminRouter.post("/users/:id/revoke", async (req, res, next) => {
 });
 
 // The account in ADMIN_EMAIL is the site owner: it can't be demoted or deleted
-// (it would be re-created as admin on the next start anyway).
+// (it becomes an admin again whenever it signs in anyway).
 function isOwnerAccount(user) {
-  const owner = String(process.env.ADMIN_EMAIL || "").trim().toLowerCase();
-
-  return Boolean(owner) && user.email === owner;
+  return Boolean(ownerEmail()) && user.email === ownerEmail();
 }
 
 // Loads a user that the signed-in admin is allowed to change.
@@ -407,11 +405,12 @@ adminRouter.delete("/users/:id", async (req, res, next) => {
     await transaction(async (q) => {
       // Keep other users' payment history intact if this was a reviewer.
       await q("UPDATE payments SET reviewed_by = NULL WHERE reviewed_by = $1", [user.id]);
-      // Payments and sessions are removed with the user (ON DELETE CASCADE).
+      // Payments are removed with the user (ON DELETE CASCADE).
       await q("DELETE FROM users WHERE id = $1", [user.id]);
     });
 
     await deleteFiles(receipts.map((r) => r.receipt_file)).catch(() => {});
+    await deleteClerkUser(user).catch((error) => console.error("[admin] Clerk delete failed:", error.message));
     res.json({ ok: true });
   } catch (error) {
     next(error);

@@ -68,18 +68,12 @@ const SCHEMA = `
     id SERIAL PRIMARY KEY,
     email TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
-    password_hash TEXT NOT NULL,
+    password_hash TEXT,
     role TEXT NOT NULL DEFAULT 'user',
     free_uses INTEGER NOT NULL DEFAULT 0,
     pro_until TIMESTAMPTZ,
     pay_ref TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );
-
-  CREATE TABLE IF NOT EXISTS sessions (
-    token_hash TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    expires_at TIMESTAMPTZ NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS visitors (
@@ -123,8 +117,6 @@ const SCHEMA = `
     value TEXT NOT NULL
   );
 
-  -- Login rate limiting has to live in the database: on Vercel every
-  -- request can be served by a different instance.
   -- Offers: timed sale campaigns and promo codes.
   CREATE TABLE IF NOT EXISTS campaigns (
     id SERIAL PRIMARY KEY,
@@ -151,6 +143,9 @@ const SCHEMA = `
   );
 
   -- Columns added after the first release (safe to re-run).
+  -- Sign-in moved to Clerk: users are linked by their Clerk user id.
+  ALTER TABLE users ADD COLUMN IF NOT EXISTS clerk_id TEXT UNIQUE;
+  ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_code TEXT UNIQUE;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS referred_by INTEGER REFERENCES users(id) ON DELETE SET NULL;
   ALTER TABLE users ADD COLUMN IF NOT EXISTS referral_rewarded BOOLEAN NOT NULL DEFAULT false;
@@ -170,30 +165,8 @@ const SCHEMA = `
   ALTER TABLE payments ADD COLUMN IF NOT EXISTS promo_code_id INTEGER REFERENCES promo_codes(id) ON DELETE SET NULL;
   ALTER TABLE payments ADD COLUMN IF NOT EXISTS campaign_id INTEGER REFERENCES campaigns(id) ON DELETE SET NULL;
 
-  -- 6-digit codes emailed for signup verification and password reset.
-  -- Only a hash of the code is stored.
-  CREATE TABLE IF NOT EXISTS email_codes (
-    id SERIAL PRIMARY KEY,
-    email TEXT NOT NULL,
-    purpose TEXT NOT NULL,
-    code_hash TEXT NOT NULL,
-    payload TEXT,
-    attempts INTEGER NOT NULL DEFAULT 0,
-    expires_at TIMESTAMPTZ NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-  );
-
-  CREATE INDEX IF NOT EXISTS email_codes_lookup ON email_codes(email, purpose);
-
-  -- Google accounts linked to a user.
-  CREATE TABLE IF NOT EXISTS oauth_accounts (
-    provider TEXT NOT NULL,
-    provider_user_id TEXT NOT NULL,
-    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    PRIMARY KEY (provider, provider_user_id)
-  );
-
+  -- Daily AI limits (and other counters) have to live in the database:
+  -- on Vercel every request can be served by a different instance.
   CREATE TABLE IF NOT EXISTS rate_limits (
     key TEXT PRIMARY KEY,
     count INTEGER NOT NULL,

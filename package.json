@@ -9,10 +9,11 @@
     "dev": "concurrently -n api,web \"node --watch server/index.js\" \"vite\"",
     "build": "vite build",
     "start": "node server/index.js",
-    "create-admin": "node server/create-admin.js",
     "db": "node server/db-tool.js"
   },
   "dependencies": {
+    "@clerk/express": "^2.1.86",
+    "@clerk/react": "^6.18.4",
     "@electric-sql/pglite": "^0.5.10",
     "@vercel/blob": "^2.8.2",
     "adm-zip": "^0.5.17",

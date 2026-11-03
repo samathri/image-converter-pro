@@ -2,10 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
 import { Icon } from "./icons.jsx";
 import Paywall from "./Paywall.jsx";
-import AuthModal from "./AuthModal.jsx";
 import BillingModal from "./BillingModal.jsx";
 import ReferralModal from "./ReferralModal.jsx";
 import AccountMenu from "./AccountMenu.jsx";
+import AltTextPanel from "./AltTextPanel.jsx";
+import { useSession } from "./useSession.js";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
 
@@ -27,6 +28,36 @@ const PRESETS = [
 ];
 
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif";
+
+// What to do once someone finishes signing in (kept across Google's redirect).
+const AUTH_INTENT = "icp-auth-intent";
+
+function readIntent() {
+  try {
+    const intent = sessionStorage.getItem(AUTH_INTENT);
+
+    sessionStorage.removeItem(AUTH_INTENT);
+    return intent;
+  } catch {
+    return null;
+  }
+}
+
+// A brand-new account (created in the last 10 minutes), seen for the first time in this browser.
+function isFirstVisit(user) {
+  if (!user?.createdAt || Date.now() - new Date(user.createdAt) > 10 * 60 * 1000) return false;
+
+  try {
+    const key = `icp-welcomed-${user.id}`;
+
+    if (localStorage.getItem(key)) return false;
+    localStorage.setItem(key, "1");
+  } catch {
+    // storage unavailable: treat as new
+  }
+
+  return true;
+}
 
 let nextId = 0;
 
@@ -188,8 +219,8 @@ export default function App() {
   const [account, setAccount] = useState(null);
   // null | "exhausted" | "too-many" | "upgrade"
   const [paywall, setPaywall] = useState(null);
-  // null | { mode: "login" | "register", reason?: string }
-  const [auth, setAuth] = useState(null);
+  const [useAiNames, setUseAiNames] = useState(true);
+  const { authLoaded, userId, clerk } = useSession();
   const [billingOpen, setBillingOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const previousPlan = useRef(null);
@@ -228,9 +259,10 @@ export default function App() {
     []
   );
 
+  // Load the account once Clerk knows who's signed in, and again when that changes.
   useEffect(() => {
-    refreshAccount();
-  }, [refreshAccount]);
+    if (authLoaded) refreshAccount();
+  }, [authLoaded, userId, refreshAccount]);
 
   const pendingReview = account?.latestPayment?.status === "pending";
 
@@ -264,18 +296,8 @@ export default function App() {
     history.replaceState(null, "", window.location.pathname);
 
     if (account.user && !account.admin) setBillingOpen(true);
-    else if (!account.user) setAuth({ mode: "login", reason: "Sign in to renew your Pro plan." });
+    else if (!account.user) openAuth("signIn", "upgrade");
   }, [renewRequested, account?.user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Google sign-in problems come back as ?auth_error=...
-  useEffect(() => {
-    const message = new URLSearchParams(window.location.search).get("auth_error");
-
-    if (!message) return;
-
-    history.replaceState(null, "", window.location.pathname);
-    setNotice({ type: "error", title: "Sign-in didn't work", text: message });
-  }, []);
 
   // Coming back from PayPal: capture the payment (once) and show the result.
   useEffect(() => {
@@ -465,7 +487,6 @@ export default function App() {
 
   // Stable references so modal Escape listeners aren't re-added each render.
   const closePaywall = useCallback(() => setPaywall(null), []);
-  const closeAuth = useCallback(() => setAuth(null), []);
   const closeBilling = useCallback(() => setBillingOpen(false), []);
   const closeInvite = useCallback(() => setInviteOpen(false), []);
 
@@ -481,6 +502,20 @@ export default function App() {
     fetchJson("/api/promo/referral/visit", { method: "POST", json: { code } }).catch(() => {});
   }, []);
 
+  // Opens Clerk's sign-in or sign-up window. "upgrade" = open billing afterwards.
+  const openAuth = (mode, intent = mode) => {
+    setPaywall(null);
+
+    try {
+      sessionStorage.setItem(AUTH_INTENT, intent);
+    } catch {
+      // storage unavailable: billing just won't open by itself
+    }
+
+    if (mode === "signUp") clerk.openSignUp();
+    else clerk.openSignIn();
+  };
+
   // Pro needs an account: sign up first, then pay.
   const startUpgrade = () => {
     setPaywall(null);
@@ -488,34 +523,29 @@ export default function App() {
     if (account?.user) {
       setBillingOpen(true);
     } else {
-      setAuth({ mode: "register", intent: "upgrade" });
+      openAuth("signUp", "upgrade");
     }
   };
 
   // After signing in: new accounts, and anyone who came from a Buy Pro
-  // button or hit the free limit, go straight to the purchase window.
-  const handleAuthed = async ({ created = false } = {}) => {
-    const intent = auth?.intent;
+  // button, go straight to the purchase window.
+  const signedInUser = account?.user?.id;
 
-    setAuth(null);
+  useEffect(() => {
+    if (!signedInUser) return;
 
-    const updated = await refreshAccount();
+    const intent = readIntent();
+    const firstVisit = isFirstVisit(account.user);
 
-    if (
-      updated?.user &&
-      updated.plan !== "pro" &&
-      !updated.admin &&
-      (created || intent === "upgrade" || outOfFilm || overLimit)
-    ) {
+    if (account.plan !== "pro" && !account.admin && (firstVisit || intent === "upgrade")) {
       setBillingOpen(true);
     }
-  };
+  }, [signedInUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const signOut = async () => {
-    await fetchJson("/api/auth/logout", { method: "POST" }).catch(() => {});
     previousPlan.current = null;
     setBillingOpen(false);
-    await refreshAccount();
+    await clerk.signOut();
   };
 
   // `limit` lets a free user develop only the first N sources.
@@ -585,7 +615,11 @@ export default function App() {
         });
 
         loaded[i] = f.file.size;
-        uploads.push({ pathname, name: f.file.name });
+        // Pro: AI names (and alt text, saved in the zip) when they've been written.
+        const ai = f.ai?.status === "done" && useAiNames ? f.ai : null;
+        const ext = f.file.name.match(/\.[^.]+$/)?.[0] || "";
+
+        uploads.push({ pathname, name: ai ? `${ai.name}${ext}` : f.file.name, alt: ai?.alt });
       }
 
       // 2. Convert on the server, which returns a temporary download link.
@@ -666,7 +700,7 @@ export default function App() {
           {account.plan !== "pro" && (
             <button
               type="button"
-              onClick={() => (account.user ? setBillingOpen(true) : setAuth({ mode: "register", intent: "upgrade" }))}
+              onClick={() => (account.user ? setBillingOpen(true) : openAuth("signUp", "upgrade"))}
             >
               Get the deal
             </button>
@@ -699,7 +733,8 @@ export default function App() {
 
           <AccountMenu
             account={account}
-            onSignIn={() => setAuth({ mode: "login" })}
+            onSignIn={() => openAuth("signIn")}
+            onManage={() => clerk.openUserProfile()}
             onBilling={() => setBillingOpen(true)}
             onInvite={() => setInviteOpen(true)}
             onSignOut={signOut}
@@ -894,6 +929,15 @@ https://example.com/image3.webp`}
               </div>
             )}
           </div>
+
+          <AltTextPanel
+            files={files}
+            setFiles={setFiles}
+            account={account}
+            useNames={useAiNames}
+            onUseNamesChange={setUseAiNames}
+            onLocked={() => setPaywall("ai")}
+          />
         </section>
 
         <aside className="recipe">
@@ -1060,16 +1104,6 @@ https://example.com/image3.webp`}
           onClose={closePaywall}
           onUpgrade={startUpgrade}
           onDevelopFirst={() => convertImages(freeLimit)}
-        />
-      )}
-
-      {auth && (
-        <AuthModal
-          initialMode={auth.mode}
-          intent={auth.intent}
-          reason={auth.reason}
-          onClose={closeAuth}
-          onAuthed={handleAuthed}
         />
       )}
 

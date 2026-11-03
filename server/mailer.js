@@ -1,4 +1,4 @@
-// Sends emails (signup codes, password reset codes) through SMTP.
+// Sends emails (Pro expiry reminders) through SMTP. Sign-in emails come from Clerk.
 // Gmail: SMTP_USER = your Gmail address, SMTP_PASS = a Google App Password.
 // Without SMTP settings, local development prints emails to the console.
 import nodemailer from "nodemailer";
@@ -40,21 +40,4 @@ export async function sendMail({ to, subject, text, html }) {
     console.error("[mail] send failed:", error.message);
     throw Object.assign(new Error("We couldn't send the email. Please try again."), { status: 502 });
   }
-}
-
-const escape = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
-
-/** Email with a 6-digit code, used for signup and password reset. */
-export function sendCodeEmail(to, { title, intro, code }) {
-  const text = `${intro}\n\nYour code: ${code}\n\nIt expires in 10 minutes. If you didn't ask for this, you can ignore this email.`;
-  const html = `
-    <div style="font-family:Arial,sans-serif;max-width:480px;margin:auto;padding:24px;color:#1b1a17">
-      <h2 style="margin:0 0 8px">${escape(title)}</h2>
-      <p style="color:#555">${escape(intro)}</p>
-      <p style="font-size:32px;font-weight:bold;letter-spacing:8px;margin:24px 0;padding:16px;text-align:center;background:#fff3ec;border-radius:12px;color:#e8572a">${escape(code)}</p>
-      <p style="color:#888;font-size:13px">The code expires in 10 minutes. If you didn't ask for this, you can ignore this email.</p>
-      <p style="color:#888;font-size:13px">Image Converter Pro</p>
-    </div>`;
-
-  return sendMail({ to, subject: `${title}: ${code}`, text, html });
 }

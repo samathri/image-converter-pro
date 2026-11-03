@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Icon } from "../icons.jsx";
 import { fetchJson, formatDate, formatMoney } from "../api.js";
 import Modal from "../Modal.jsx";
-import { PasswordInput } from "../AuthModal.jsx";
+import { useSession } from "../useSession.js";
 import "../Modal.css";
 import "../Account.css";
 import "./Admin.css";
@@ -25,33 +25,12 @@ function useTheme() {
 
 // ---------- Login gate ----------
 
-function AdminLogin({ onLoggedIn, notAdmin }) {
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    setBusy(true);
-    setError("");
-
-    try {
-      await fetchJson("/api/auth/login", {
-        method: "POST",
-        json: { email, password },
-      });
-      await onLoggedIn();
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setBusy(false);
-    }
-  };
+function AdminLogin({ notAdmin }) {
+  const { clerk } = useSession();
 
   return (
     <div className="admin-gate">
-      <form className="admin-gate-card form" onSubmit={submit}>
+      <div className="admin-gate-card form">
         <span className="admin-gate-icon">{Icon.shield}</span>
         <span className="eyebrow">Lab console</span>
         <h1>Admin sign in</h1>
@@ -63,24 +42,18 @@ function AdminLogin({ onLoggedIn, notAdmin }) {
           </p>
         )}
 
-        <label className="form-field">
-          <span>Email</span>
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" required />
-        </label>
-
-        <div className="form-field">
-          <span>Password</span>
-          <PasswordInput value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" />
-        </div>
-
-        {error && <p className="form-error">{error}</p>}
-
-        <button className="btn-primary" disabled={busy}>
-          {busy ? "Signing in…" : <>Sign in {Icon.arrow}</>}
-        </button>
+        {notAdmin ? (
+          <button type="button" className="btn-primary" onClick={() => clerk.signOut({ redirectUrl: "/admin" })}>
+            Sign out and switch account {Icon.arrow}
+          </button>
+        ) : (
+          <button type="button" className="btn-primary" onClick={() => clerk.openSignIn()}>
+            Sign in {Icon.arrow}
+          </button>
+        )}
 
         <a className="btn-ghost" href="/">← Back to the app</a>
-      </form>
+      </div>
     </div>
   );
 }
@@ -1180,6 +1153,7 @@ const TABS = [
 export default function AdminApp() {
   useTheme();
 
+  const { authLoaded, userId, clerk } = useSession();
   const [me, setMe] = useState(undefined);
   const [tab, setTab] = useState(() => location.hash.slice(1) || "overview");
   const [stats, setStats] = useState(null);
@@ -1196,8 +1170,8 @@ export default function AdminApp() {
   const loadSettings = useCallback(() => fetchJson("/api/admin/settings").then(setSettings), []);
 
   useEffect(() => {
-    loadMe();
-  }, [loadMe]);
+    if (authLoaded) loadMe();
+  }, [authLoaded, userId, loadMe]);
 
   useEffect(() => {
     if (!isAdmin) return;
@@ -1214,17 +1188,14 @@ export default function AdminApp() {
     history.replaceState(null, "", `#${id}`);
   };
 
-  const signOut = async () => {
-    await fetchJson("/api/auth/logout", { method: "POST" }).catch(() => {});
-    setMe(null);
-  };
+  const signOut = () => clerk.signOut({ redirectUrl: "/admin" });
 
   if (me === undefined) {
     return <div className="admin-gate"><p className="muted">Loading…</p></div>;
   }
 
   if (!isAdmin) {
-    return <AdminLogin onLoggedIn={loadMe} notAdmin={Boolean(me)} />;
+    return <AdminLogin notAdmin={Boolean(me)} />;
   }
 
   const current = TABS.find((t) => t.id === tab) || TABS[0];

@@ -1,7 +1,6 @@
 // Look inside the database from the command line.
 //   npm run db                         overview: tables and users
 //   npm run db -- sql "SELECT ..."     run any SQL query
-//   npm run db -- unlock-logins        clear the login attempt limits
 // Uses DATABASE_URL if set (e.g. Vercel's Neon database after
 // `vercel env pull .env.local`), otherwise the local data/pglite database.
 import "./env.js";
@@ -28,7 +27,7 @@ const show = (rows) => (rows.length ? console.table(rows) : console.log("(no row
 
 switch (command) {
   case "overview": {
-    const tables = ["users", "payments", "sessions", "visitors", "ip_usage", "settings", "rate_limits"];
+    const tables = ["users", "payments", "visitors", "ip_usage", "settings", "rate_limits"];
     const counts = {};
 
     for (const t of tables) counts[t] = (await query(`SELECT COUNT(*)::int n FROM ${t}`))[0].n;
@@ -63,14 +62,8 @@ switch (command) {
     break;
   }
 
-  case "unlock-logins": {
-    await query("DELETE FROM rate_limits");
-    console.log("Login attempt limits cleared. You can try signing in again.");
-    break;
-  }
-
   default:
-    console.error(`Unknown command "${command}". Use: overview, sql, unlock-logins`);
+    console.error(`Unknown command "${command}". Use: overview, sql`);
     process.exit(1);
 }
 

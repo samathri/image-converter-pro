@@ -28,6 +28,13 @@ function getCopy(reason, account, imageCount) {
         text: `Free rolls hold ${account.maxImages} images. Go Pro to develop up to ${account.proMaxImages} at once.`,
       };
 
+    case "ai":
+      return {
+        eyebrow: "Pro feature",
+        title: "Names and alt text, written for you",
+        text: "Pro looks at each photo and writes a clear file name and alt text for it. Edit them, then download with the new names.",
+      };
+
     default:
       return {
         eyebrow: "Pro darkroom",
@@ -58,6 +65,7 @@ export default function Paywall({
   const features = [
     "Unlimited conversions",
     `Up to ${account.proMaxImages} images per batch`,
+    "AI file names and alt text",
     "AVIF, WEBP, JPEG and PNG output",
     "Pay by bank transfer, no card needed",
   ];

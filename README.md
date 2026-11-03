@@ -12,7 +12,8 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
   - **PayPal (sandbox):** the buyer pays on PayPal (PayPal balance or card); when they return, the server captures the payment and Pro unlocks immediately.
   - **PayHere (optional):** supported too, but PayHere only approves root domains, so it needs your own domain rather than `*.vercel.app`.
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
-- **Accounts:** sign up with email (a 6-digit code is emailed to verify it) or Google. Show/hide password, and "Forgot password" with an emailed code.
+- **Names & alt text (Pro):** Google Gemini looks at each uploaded photo and writes an SEO-friendly file name and alt text. Users can edit them, copy them, export a CSV, and download the converted images under the new names (a zip also includes `alt-text.csv`).
+- **Accounts:** sign-in by [Clerk](https://clerk.com): email with a verification code, Google, and "Forgot password", all in Clerk's sign-in window. Users also manage their profile there (Account settings).
 - **Offers:** longer-plan discounts (% off 3, 6 and 12-month plans, shown as "Save X%"; other discounts apply on top), timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (users who have bought Pro get an invite link; every 5 friends who join give them 5% off their next payment, both numbers set by the admin).
 - **Pro expiry:** users see a banner and an amber badge in the last 7 days and after it ends, and get reminder emails 7 days before, 1 day before and on the day it ends (once each per Pro period; renewing resets them). Admins see each user's expiry date and days left, and an "ending this week" list on the Overview.
 - **Admin dashboard** (`/admin`): review payments and receipts, manage users (grant or revoke Pro, make admin, delete), run promotions, set the price and bank details. Admins always have unlimited access; the owner account (`ADMIN_EMAIL`) can't be demoted or deleted.
@@ -36,17 +37,17 @@ Needs Node.js 22.13 or newer.
 npm install
 ```
 
-Copy `.env.example` to `.env` and set `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Leave the database and Blob settings empty. Then:
+Copy `.env.example` to `.env` and set the Clerk keys (see [Sign-in](#sign-in-clerk)), `ADMIN_EMAIL` and, for the AI feature, `GEMINI_API_KEY`. Leave the database and Blob settings empty. Then:
 
 ```bash
 npm run dev
 ```
 
-Open http://localhost:5173. The admin account is created on first start; sign in at http://localhost:5173/admin and fill in **Settings** (price, currency, bank details).
+Open http://localhost:5173 and sign in with the `ADMIN_EMAIL` address: that account becomes the admin. Open http://localhost:5173/admin and fill in **Settings** (price, currency, bank details).
 
 To run the built version instead, use `npm run build` and then `npm start`, and open http://localhost:3001.
 
-> The local database can only be opened by one program at a time. If you use `npm run create-admin`, stop the app first.
+> The local database can only be opened by one program at a time. If you use `npm run db`, stop the app first.
 
 ## Deploy to Vercel
 
@@ -58,34 +59,41 @@ To run the built version instead, use `npm run build` and then `npm start`, and 
    | Name | Value |
    |---|---|
    | `SESSION_SECRET` | A long random string (required) |
-   | `ADMIN_EMAIL` | Your admin email |
-   | `ADMIN_PASSWORD` | A strong password (8+ characters) |
+   | `VITE_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | From the Clerk dashboard (see below) |
+   | `ADMIN_EMAIL` | The email you'll sign in with as the owner/admin |
+   | `GEMINI_API_KEY` | From Google AI Studio (see below) |
    | `CRON_SECRET` | A long random string (required for the daily job: cleanup and expiry reminders) |
    | `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET` | From developer.paypal.com (see below) |
    | `PAYPAL_SANDBOX` | `true` |
 
    To make a random string, run `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`.
 5. **Redeploy** (Deployments → ⋯ → Redeploy) so the new variables are used.
-6. Open `https://your-project.vercel.app/admin`, sign in with your admin email and password, and fill in **Settings**.
+6. Open `https://your-project.vercel.app/admin`, sign in with your `ADMIN_EMAIL` address, and fill in **Settings**.
 
-The tables are created automatically on first use. The admin account always follows `ADMIN_EMAIL` and `ADMIN_PASSWORD`: change them and redeploy to change the admin login.
+The tables are created automatically on first use. Whoever signs in with `ADMIN_EMAIL` is always an admin.
 
-### Email (signup codes and password reset)
+### Sign-in (Clerk)
+
+1. Create a free account at [clerk.com](https://clerk.com) and an application. Turn on **Email** and **Google** as sign-in options.
+2. Open **Configure → API keys** and copy the **Publishable key** into `VITE_CLERK_PUBLISHABLE_KEY` and the **Secret key** into `CLERK_SECRET_KEY` (mark it **Sensitive** in Vercel). Redeploy: the publishable key is built into the frontend.
+3. Clerk's development keys work on localhost and on `*.vercel.app`, with Clerk's shared Google login (no Google Cloud setup). For a production instance with your own domain, Clerk walks you through DNS records and your own Google credentials.
+
+Accounts from before Clerk are kept: signing in with the same email links to the old account, with its plan, payments and referrals. Deleting a user in the admin dashboard also deletes their Clerk login.
+
+### AI names and alt text (Gemini)
+
+1. Open [aistudio.google.com](https://aistudio.google.com), sign in, and choose **Get API key → Create API key**.
+2. Add it as `GEMINI_API_KEY` (mark it **Sensitive**) and redeploy.
+
+The free tier has per-minute and per-day limits, so each user can describe up to 200 images a day (`AI_DAILY_LIMIT`). Only a small preview (768 px JPEG) is sent, and nothing is stored. On the free tier Google may use the data to improve its models.
+
+### Email (Pro expiry reminders)
 
 1. Turn on **2-Step Verification** for the Gmail account that will send the emails.
 2. Open [myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords), create an App Password (name it e.g. "Image Converter"), and copy the 16-character password.
 3. Add `SMTP_USER` (the Gmail address) and `SMTP_PASS` (the App Password) to the environment variables (mark `SMTP_PASS` **Sensitive**) and redeploy.
 
-Gmail allows around 500 emails a day. Locally, without these settings, the codes are printed in the terminal where the app runs.
-
-### Google sign-in
-
-1. Go to [console.cloud.google.com](https://console.cloud.google.com), create a project, then **APIs & Services → OAuth consent screen**: choose **External**, fill in the app name and your email, and add yourself as a test user (or publish the app).
-2. **APIs & Services → Credentials → Create credentials → OAuth client ID → Web application.**
-3. Under **Authorised redirect URIs** add `https://YOUR-DOMAIN/api/auth/oauth/google/callback` (and `http://localhost:3001/api/auth/oauth/google/callback` for local testing).
-4. Copy the **Client ID** and **Client secret** into `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`, then redeploy. The "Continue with Google" button appears automatically.
-
-Google accounts are matched to existing accounts by email. New ones get no password; they can set one with "Forgot password".
+Gmail allows around 500 emails a day. Locally, without these settings, the emails are printed in the terminal where the app runs.
 
 ### PayPal (sandbox)
 
@@ -111,7 +119,7 @@ Pro is only granted when the notification's signature is valid **and** the amoun
 ## Security notes
 
 - Free limits and Pro access are checked on the server; changing anything in the browser can't get around them.
-- Passwords are hashed with scrypt. Sessions are HTTP-only cookies, and login attempts are rate-limited in the database.
+- Passwords, verification codes and sessions are handled by Clerk; the API checks the Clerk session token on every request.
 - Uploads are authorized per visitor or user and limited by type and size. Each visitor can only use files in their own folder.
 - Receipts are private; only admins can view them, through short-lived signed links. File types are checked by content, not by name.
 - Requests from other websites are rejected, and image URLs that point to private networks are blocked.

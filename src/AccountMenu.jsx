@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { formatDate } from "./api.js";
 
-export default function AccountMenu({ account, onSignIn, onBilling, onInvite, onSignOut }) {
+export default function AccountMenu({ account, onSignIn, onManage, onBilling, onInvite, onSignOut }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -93,6 +93,11 @@ export default function AccountMenu({ account, onSignIn, onBilling, onInvite, on
               Admin dashboard
             </a>
           )}
+
+          <button role="menuitem" onClick={run(onManage)}>
+            {Icon.settings}
+            Account settings
+          </button>
 
           <button role="menuitem" onClick={run(onSignOut)}>
             {Icon.logout}

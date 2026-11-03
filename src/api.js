@@ -1,5 +1,22 @@
+import { getToken } from "@clerk/react";
+
+export const CLERK_KEY = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY || "";
+
+// The Clerk session token, sent as a Bearer header so the API knows who's signed in.
+async function authHeader() {
+  if (!CLERK_KEY) return {};
+
+  try {
+    const token = await getToken();
+
+    return token ? { Authorization: `Bearer ${token}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 export async function fetchJson(url, options = {}) {
-  const init = { ...options };
+  const init = { ...options, headers: { ...(await authHeader()), ...options.headers } };
 
   if (init.json !== undefined) {
     init.body = JSON.stringify(init.json);
@@ -29,7 +46,9 @@ function safeFileName(name) {
 }
 
 // Local development: post the file to our own server, with progress.
-function uploadLocal(file, pathname, purpose, onProgress) {
+async function uploadLocal(file, pathname, purpose, onProgress) {
+  const headers = await authHeader();
+
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const body = new FormData();
@@ -40,6 +59,7 @@ function uploadLocal(file, pathname, purpose, onProgress) {
 
     xhr.open("POST", "/api/uploads/local");
     xhr.responseType = "json";
+    for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
     xhr.upload.onprogress = (e) => e.lengthComputable && onProgress?.(e.loaded / e.total);
     xhr.onload = () =>
       xhr.status < 300

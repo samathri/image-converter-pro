@@ -7,7 +7,8 @@ import AdmZip from "adm-zip";
 import path from "path";
 import { compressToTarget, downloadImage } from "./converter.js";
 import { identify, getAccount, reserveUse, PRO_MAX_IMAGES } from "./quota.js";
-import { authRouter, ensureBootstrapAdmin, loadUser } from "./auth.js";
+import { clerkAuth, loadUser } from "./auth.js";
+import { aiEnabled, aiRouter } from "./ai.js";
 import { billingRouter, adminRouter } from "./billing.js";
 import { payhereRouter, payhereNotifyRouter } from "./payhere.js";
 import { paypalRouter } from "./paypal.js";
@@ -60,19 +61,19 @@ app.use("/api", (req, res, next) => {
   next();
 });
 
+app.use("/api", clerkAuth, identify, loadUser);
+
+// Image previews for the AI need a bigger body limit than the rest of the API.
+app.use("/api/ai", aiRouter);
+
 app.use("/api", express.json({ limit: "64kb" }));
-
-app.use("/api", (req, res, next) => {
-  ensureBootstrapAdmin().then(() => next(), next);
-});
-
-app.use("/api", loadUser, identify);
 
 app.get("/api/me", async (req, res, next) => {
   try {
     res.json({
       ...(await getAccount(req)),
       storage: usingBlob ? "blob" : "local",
+      ai: aiEnabled(),
       uploadPrefix: uploadPrefix(req),
       receiptPrefix: receiptPrefix(req),
     });
@@ -81,7 +82,6 @@ app.get("/api/me", async (req, res, next) => {
   }
 });
 
-app.use("/api/auth", authRouter);
 app.use("/api/uploads", uploadsRouter);
 app.use("/api/files", filesRouter);
 app.use("/api/billing/payhere", payhereRouter);
@@ -98,7 +98,12 @@ app.post("/api/convert", async (req, res, next) => {
 
   const uploads = (Array.isArray(req.body.uploads) ? req.body.uploads : [])
     .slice(0, PRO_MAX_IMAGES)
-    .map((u) => ({ pathname: String(u?.pathname || ""), name: String(u?.name || "image") }));
+    .map((u) => ({
+      pathname: String(u?.pathname || ""),
+      name: String(u?.name || "image"),
+      // Alt text written by the Pro AI feature; saved next to the images in the zip.
+      alt: u?.alt ? String(u.alt).slice(0, 250) : "",
+    }));
 
   // Only this visitor's own uploads can be converted.
   const prefix = uploadPrefix(req);
@@ -145,7 +150,7 @@ app.post("/api/convert", async (req, res, next) => {
       const buffer = await readFile(upload.pathname);
 
       if (!buffer) throw Object.assign(new Error("An uploaded image has expired. Please add it again."), { status: 400 });
-      allFiles.push({ buffer, name: upload.name });
+      allFiles.push({ buffer, name: upload.name, alt: upload.alt });
     }
 
     const failedUrls = [];
@@ -183,7 +188,7 @@ app.post("/api/convert", async (req, res, next) => {
         while (usedNames.has(name)) name = `${filename}_${n++}.${format}`;
 
         usedNames.add(name);
-        outputs.push({ name, buffer, format });
+        outputs.push({ name, buffer, format, alt: file.alt });
       }
     }
 
@@ -197,6 +202,17 @@ app.post("/api/convert", async (req, res, next) => {
       const zip = new AdmZip();
 
       for (const output of outputs) zip.addFile(output.name, output.buffer);
+
+      const withAlt = outputs.filter((o) => o.alt);
+
+      if (withAlt.length > 0) {
+        const cell = (v) => `"${String(v).replace(/"/g, '""')}"`;
+        const csv = ["file,alt text", ...withAlt.map((o) => `${cell(o.name)},${cell(o.alt)}`)].join("\r\n");
+
+        // The BOM makes Excel read the file as UTF-8.
+        zip.addFile("alt-text.csv", Buffer.from("﻿" + csv, "utf8"));
+      }
+
       result = { name: "converted-images.zip", buffer: zip.toBuffer(), type: "application/zip" };
     }
 
