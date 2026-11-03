@@ -5,7 +5,7 @@ import Paywall from "./Paywall.jsx";
 import BillingModal from "./BillingModal.jsx";
 import ReferralModal from "./ReferralModal.jsx";
 import AccountMenu from "./AccountMenu.jsx";
-import AltTextPanel from "./AltTextPanel.jsx";
+import NamesPage from "./NamesPage.jsx";
 import { useSession } from "./useSession.js";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
@@ -28,6 +28,11 @@ const PRESETS = [
 ];
 
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif";
+
+// The app has two pages: the converter (/) and Names & alt text (/names).
+const PAGES = { convert: "/", names: "/names" };
+
+const pageFromPath = () => (window.location.pathname.replace(/\/+$/, "") === "/names" ? "names" : "convert");
 
 // What to do once someone finishes signing in (kept across Google's redirect).
 const AUTH_INTENT = "icp-auth-intent";
@@ -219,7 +224,10 @@ export default function App() {
   const [account, setAccount] = useState(null);
   // null | "exhausted" | "too-many" | "upgrade"
   const [paywall, setPaywall] = useState(null);
-  const [useAiNames, setUseAiNames] = useState(true);
+  const [page, setPage] = useState(pageFromPath);
+  // Names & alt text page state lives here so it survives switching pages.
+  const [namesItems, setNamesItems] = useState([]);
+  const [namesFields, setNamesFields] = useState(["name", "alt"]);
   const { authLoaded, userId, clerk } = useSession();
   const [billingOpen, setBillingOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -448,6 +456,61 @@ export default function App() {
   const outOfFilm = isFree && account.usesLeft === 0;
   const overLimit = isFree && sourceCount > freeLimit;
 
+  const goTo = (next) => {
+    if (next === page) return;
+
+    history.pushState(null, "", PAGES[next]);
+    setPage(next);
+    window.scrollTo(0, 0);
+  };
+
+  useEffect(() => {
+    const onPop = () => setPage(pageFromPath());
+
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // From the Names page: the renamed images (with alt text) go to the converter.
+  // Images that came from the converter replace their originals there.
+  const sendToConverter = (renamed) => {
+    setFiles((current) => {
+      const next = [...current];
+
+      for (const { file, alt, sourceId } of renamed) {
+        const index = next.findIndex((f) => f.id === sourceId);
+        const image = { file, alt, preview: URL.createObjectURL(file) };
+
+        if (index >= 0) {
+          URL.revokeObjectURL(next[index].preview);
+          next[index] = { ...next[index], ...image };
+        } else {
+          next.push({ id: nextId++, ...image });
+        }
+      }
+
+      return next;
+    });
+
+    goTo("convert");
+    setNotice({
+      type: "success",
+      title: "New names are in",
+      text: `${renamed.length} image${renamed.length === 1 ? "" : "s"} ready. Pick a format and size, then develop.`,
+    });
+  };
+
+  // From the converter: write names and alt text for the loaded images first.
+  const sendToNames = () => {
+    setNamesItems((current) => [
+      ...current,
+      ...files
+        .filter((f) => !current.some((item) => item.sourceId === f.id))
+        .map((f) => ({ id: `c${f.id}`, sourceId: f.id, file: f.file, preview: URL.createObjectURL(f.file) })),
+    ]);
+    goTo("names");
+  };
+
   const addFiles = (fileList) => {
     const images = Array.from(fileList)
       .filter((file) =>
@@ -615,11 +678,8 @@ export default function App() {
         });
 
         loaded[i] = f.file.size;
-        // Pro: AI names (and alt text, saved in the zip) when they've been written.
-        const ai = f.ai?.status === "done" && useAiNames ? f.ai : null;
-        const ext = f.file.name.match(/\.[^.]+$/)?.[0] || "";
-
-        uploads.push({ pathname, name: ai ? `${ai.name}${ext}` : f.file.name, alt: ai?.alt });
+        // Alt text from the Names page is saved in the zip as alt-text.csv.
+        uploads.push({ pathname, name: f.file.name, alt: f.alt });
       }
 
       // 2. Convert on the server, which returns a temporary download link.
@@ -719,6 +779,29 @@ export default function App() {
           </div>
         </div>
 
+        <nav className="page-tabs" aria-label="Pages">
+          {[
+            ["convert", "Converter", Icon.aperture],
+            ["names", "Names & alt text", Icon.sparkle],
+          ].map(([id, label, icon]) => (
+            <a
+              key={id}
+              href={PAGES[id]}
+              className={page === id ? "is-active" : ""}
+              aria-current={page === id ? "page" : undefined}
+              onClick={(e) => {
+                if (e.metaKey || e.ctrlKey || e.shiftKey) return;
+                e.preventDefault();
+                goTo(id);
+              }}
+            >
+              {icon}
+              <span>{label}</span>
+              {id === "names" && <em className="pro-tag">Pro</em>}
+            </a>
+          ))}
+        </nav>
+
         <div className="topbar-actions">
           <RollMeter
             account={account}
@@ -753,6 +836,17 @@ export default function App() {
         </div>
       </header>
 
+      {page === "names" ? (
+        <NamesPage
+          items={namesItems}
+          setItems={setNamesItems}
+          fields={namesFields}
+          setFields={setNamesFields}
+          account={account}
+          onLocked={() => setPaywall("ai")}
+          onSendToConverter={sendToConverter}
+        />
+      ) : (
       <main className="layout">
         <section className="workspace">
           <div
@@ -861,9 +955,14 @@ https://example.com/image3.webp`}
                 </p>
               </div>
               {files.length > 0 && (
-                <button className="text-btn" onClick={clearFiles}>
-                  Clear all
-                </button>
+                <>
+                  <button className="text-btn name-with-ai" onClick={sendToNames}>
+                    {Icon.sparkle} Name with AI
+                  </button>
+                  <button className="text-btn" onClick={clearFiles}>
+                    Clear all
+                  </button>
+                </>
               )}
             </div>
 
@@ -930,14 +1029,6 @@ https://example.com/image3.webp`}
             )}
           </div>
 
-          <AltTextPanel
-            files={files}
-            setFiles={setFiles}
-            account={account}
-            useNames={useAiNames}
-            onUseNamesChange={setUseAiNames}
-            onLocked={() => setPaywall("ai")}
-          />
         </section>
 
         <aside className="recipe">
@@ -1090,6 +1181,7 @@ https://example.com/image3.webp`}
           </div>
         </aside>
       </main>
+      )}
 
       <footer className="footer">
         Images are processed on the server and never stored.

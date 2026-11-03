@@ -14,10 +14,17 @@ const DAILY_LIMIT = Number(process.env.AI_DAILY_LIMIT) || 200;
 
 const MAX_IMAGE_BASE64 = 700_000; // ~500 KB preview
 
-const PROMPT = `You write file names and alt text for images on websites.
+// What the AI writes for each field the user asked for.
+const FIELDS = {
+  name: `- name: a short, descriptive, SEO-friendly file name in lowercase English words joined with hyphens, 2 to 6 words, no file extension, no numbers unless they are visible and important (e.g. "red-vintage-bicycle-brick-wall").`,
+  alt: `- alt: alt text for screen readers, one plain sentence under 125 characters that says what the image shows. Don't start with "Image of" or "Picture of". Include any important visible text.`,
+};
+
+function promptFor(fields) {
+  return `You write file names and alt text for images on websites.
 Look at the image and return:
-- name: a short, descriptive, SEO-friendly file name in lowercase English words joined with hyphens, 2 to 6 words, no file extension, no numbers unless they are visible and important (e.g. "red-vintage-bicycle-brick-wall").
-- alt: alt text for screen readers, one plain sentence under 125 characters that says what the image shows. Don't start with "Image of" or "Picture of". Include any important visible text.`;
+${fields.map((f) => FIELDS[f]).join("\n")}`;
+}
 
 const httpError = (status, message) => Object.assign(new Error(message), { status });
 
@@ -49,7 +56,7 @@ async function overDailyLimit(userId) {
   return row.count > DAILY_LIMIT;
 }
 
-function callGemini(base64, mimeType) {
+function callGemini(base64, mimeType, fields) {
   return fetch(
     `${API_BASE}/v1beta/models/${encodeURIComponent(MODEL)}:generateContent`,
     {
@@ -58,7 +65,7 @@ function callGemini(base64, mimeType) {
       body: JSON.stringify({
         contents: [
           {
-            parts: [{ inline_data: { mime_type: mimeType, data: base64 } }, { text: PROMPT }],
+            parts: [{ inline_data: { mime_type: mimeType, data: base64 } }, { text: promptFor(fields) }],
           },
         ],
         generationConfig: {
@@ -66,8 +73,8 @@ function callGemini(base64, mimeType) {
           responseMimeType: "application/json",
           responseSchema: {
             type: "OBJECT",
-            properties: { name: { type: "STRING" }, alt: { type: "STRING" } },
-            required: ["name", "alt"],
+            properties: Object.fromEntries(fields.map((f) => [f, { type: "STRING" }])),
+            required: fields,
           },
         },
       }),
@@ -76,13 +83,13 @@ function callGemini(base64, mimeType) {
   );
 }
 
-async function describeImage(base64, mimeType) {
-  let response = await callGemini(base64, mimeType);
+async function describeImage(base64, mimeType, fields) {
+  let response = await callGemini(base64, mimeType, fields);
 
   // 503 = Gemini is overloaded for a moment: try once more.
   if (response.status === 503) {
     await new Promise((r) => setTimeout(r, 1500));
-    response = await callGemini(base64, mimeType);
+    response = await callGemini(base64, mimeType, fields);
   }
 
   const data = await response.json().catch(() => ({}));
@@ -108,12 +115,12 @@ async function describeImage(base64, mimeType) {
   const name = slugify(result?.name);
   const alt = String(result?.alt || "").replace(/\s+/g, " ").trim().slice(0, 250);
 
-  if (!name || !alt) {
+  if ((fields.includes("name") && !name) || (fields.includes("alt") && !alt)) {
     // e.g. blocked by safety filters
     throw httpError(422, "Couldn't describe this image.");
   }
 
-  return { name, alt };
+  return Object.fromEntries(fields.map((f) => [f, f === "name" ? name : alt]));
 }
 
 export const aiRouter = express.Router();
@@ -130,11 +137,16 @@ aiRouter.post("/describe", requireUser, async (req, res, next) => {
     if (!match) throw httpError(400, "Send the image as a base64 JPEG, PNG or WEBP.");
     if (match[2].length > MAX_IMAGE_BASE64) throw httpError(413, "The preview image is too large.");
 
+    // Names, alt text or both (default both).
+    const fields = ["name", "alt"].filter((f) => !Array.isArray(req.body.fields) || req.body.fields.includes(f));
+
+    if (fields.length === 0) throw httpError(400, "Choose file names, alt text or both.");
+
     if (await overDailyLimit(req.user.id)) {
       throw httpError(429, `You've reached today's limit of ${DAILY_LIMIT} images. Try again tomorrow.`);
     }
 
-    res.json(await describeImage(match[2], match[1]));
+    res.json(await describeImage(match[2], match[1], fields));
   } catch (error) {
     next(error);
   }
