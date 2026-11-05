@@ -1,6 +1,8 @@
 import { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { apiFetch } from "./api.js";
+import Modal from "./Modal.jsx";
+import ImageViewer from "./ImageViewer.jsx";
 
 const STYLES = [
   { id: "none", label: "No style", note: "Just your words" },
@@ -39,6 +41,20 @@ const EXAMPLES = [
   "Tiny house on a floating island with waterfalls, clouds around it",
 ];
 
+// Ideas for the Edit box.
+const EDIT_IDEAS = [
+  "make it night time",
+  "add falling snow",
+  "change the background to a beach",
+  "make it black and white",
+  "warmer, golden light",
+  "make it more colourful",
+  "close-up view",
+  "in autumn",
+  "add a few people",
+  "remove the clutter",
+];
+
 // Free Pollinations: one image every 45 seconds per person.
 const FREE_WAIT = 45;
 let nextFreeAt = 0; // survives switching pages
@@ -64,10 +80,70 @@ function saveBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+/**
+ * "What should change?" for a created image. The new image keeps the same seed
+ * and description plus the change, so the scene stays close to the original.
+ */
+function EditDialog({ item, onClose, onApply, onNewVersion }) {
+  const [change, setChange] = useState("");
+
+  const addIdea = (idea) => setChange((c) => (c.trim() ? `${c.trim().replace(/[,\s]+$/, "")}, ${idea}` : idea));
+
+  return (
+    <Modal onClose={onClose} labelledBy="edit-title" className="edit-dialog">
+      <div className="edit-preview">
+        <img src={item.url} alt={item.prompt} />
+      </div>
+
+      <form
+        className="modal-body form"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (change.trim()) onApply(change.trim());
+        }}
+      >
+        <span className="eyebrow">Edit image</span>
+        <h2 id="edit-title">What should change?</h2>
+        <p className="modal-lead edit-base" title={item.basePrompt || item.prompt}>
+          {item.basePrompt || item.prompt}
+        </p>
+
+        <label className="form-field">
+          <span className="sr-only">Describe the change</span>
+          <textarea
+            value={change}
+            onChange={(e) => setChange(e.target.value.slice(0, 300))}
+            placeholder="e.g. make it night time, add a red scarf…"
+            rows={3}
+            autoFocus
+          />
+        </label>
+
+        <div className="create-keywords edit-ideas" aria-label="Ideas">
+          {EDIT_IDEAS.map((idea) => (
+            <button key={idea} type="button" onClick={() => addIdea(idea)}>
+              + {idea}
+            </button>
+          ))}
+        </div>
+
+        <button className="btn-primary" disabled={!change.trim()}>
+          {Icon.edit} Make the change
+        </button>
+        <button type="button" className="btn-ghost" onClick={onNewVersion}>
+          {Icon.refresh} Just a new version, same description
+        </button>
+      </form>
+    </Modal>
+  );
+}
+
 export default function CreatePage({ items, setItems, settings, setSettings, account, onLocked, onSendToConverter, onSendToNames }) {
   const [running, setRunning] = useState(false);
   const [error, setError] = useState("");
   const [countdown, setCountdown] = useState(0);
+  const [viewing, setViewing] = useState(null); // item shown in the zoom viewer
+  const [editing, setEditing] = useState(null); // item in the Edit box
   const stopRef = useRef(false);
   const promptRef = useRef(null);
 
@@ -201,16 +277,33 @@ export default function CreatePage({ items, setItems, settings, setSettings, acc
     setRunning(false);
   };
 
-  const newJobs = (base, n) =>
+  // `keepSeed` redoes the same image (edits, retries); otherwise a new version.
+  const newJobs = (base, n, { keepSeed = false } = {}) =>
     Array.from({ length: n }, () => ({
       id: nextId++,
       prompt: base.prompt,
+      basePrompt: base.basePrompt,
+      change: base.change,
       style: base.style,
       shape: base.shape,
       enhance: base.enhance,
-      seed: Math.floor(Math.random() * 1e9),
+      seed: keepSeed ? base.seed : Math.floor(Math.random() * 1e9),
       status: "queued",
     }));
+
+  const applyEdit = (item, change) => {
+    const basePrompt = item.basePrompt || item.prompt;
+
+    setEditing(null);
+    setViewing(null);
+    run(newJobs({ ...item, basePrompt, change, prompt: `${basePrompt}, ${change}`, enhance: false }, 1, { keepSeed: true }));
+  };
+
+  const newVersion = (item) => {
+    setEditing(null);
+    setViewing(null);
+    run(newJobs(item, 1));
+  };
 
   const generate = () => {
     const text = prompt.trim();
@@ -313,7 +406,10 @@ export default function CreatePage({ items, setItems, settings, setSettings, acc
                 <figure key={item.id} className={`create-card is-${item.status}`}>
                   <div className="create-frame" style={{ aspectRatio: shapeRatio(item.shape) }}>
                     {item.status === "done" ? (
-                      <img src={item.url} alt={item.prompt} />
+                      <button type="button" className="create-zoom" onClick={() => setViewing(item)} aria-label="Zoom in">
+                        <img src={item.url} alt={item.prompt} />
+                        <span aria-hidden="true">{Icon.zoomIn}</span>
+                      </button>
                     ) : item.status === "error" ? (
                       <p className="create-error">{item.error}</p>
                     ) : (
@@ -331,7 +427,15 @@ export default function CreatePage({ items, setItems, settings, setSettings, acc
                   </div>
 
                   <figcaption>
-                    <p title={item.prompt}>{item.prompt}</p>
+                    <p title={item.prompt}>
+                      {item.change ? (
+                        <>
+                          <em className="create-change">{Icon.edit} {item.change}</em> · {item.basePrompt}
+                        </>
+                      ) : (
+                        item.prompt
+                      )}
+                    </p>
 
                     <div className="create-actions">
                       {item.status === "done" && (
@@ -347,16 +451,16 @@ export default function CreatePage({ items, setItems, settings, setSettings, acc
                           </button>
                           <button
                             type="button"
-                            onClick={() => run(newJobs(item, 1))}
+                            onClick={() => setEditing(item)}
                             disabled={running}
-                            title="Make another version"
+                            title="Change something in this image"
                           >
-                            {Icon.refresh} Variation
+                            {Icon.edit} Edit
                           </button>
                         </>
                       )}
                       {item.status === "error" && (
-                        <button type="button" onClick={() => run(newJobs(item, 1))} disabled={running}>
+                        <button type="button" onClick={() => run(newJobs(item, 1, { keepSeed: true }))} disabled={running}>
                           {Icon.refresh} Try again
                         </button>
                       )}
@@ -461,6 +565,33 @@ export default function CreatePage({ items, setItems, settings, setSettings, acc
           </p>
         </div>
       </aside>
+
+      {viewing && (
+        <ImageViewer
+          src={viewing.url}
+          title={fileNameFor(viewing)}
+          onClose={() => setViewing(null)}
+          actions={
+            <>
+              <button type="button" className="btn-ghost" onClick={() => setEditing(viewing)} disabled={running}>
+                {Icon.edit} Edit
+              </button>
+              <button type="button" className="btn-primary" onClick={() => saveBlob(viewing.blob, fileNameFor(viewing))}>
+                {Icon.download} Download
+              </button>
+            </>
+          }
+        />
+      )}
+
+      {editing && (
+        <EditDialog
+          item={editing}
+          onClose={() => setEditing(null)}
+          onApply={(change) => applyEdit(editing, change)}
+          onNewVersion={() => newVersion(editing)}
+        />
+      )}
     </main>
   );
 }

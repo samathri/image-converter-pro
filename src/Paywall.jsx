@@ -28,6 +28,13 @@ function getCopy(reason, account, imageCount) {
         text: `Free rolls hold ${account.maxImages} images. Go Pro to develop up to ${account.proMaxImages} at once.`,
       };
 
+    case "removebg":
+      return {
+        eyebrow: "Pro feature",
+        title: "Remove backgrounds in one click",
+        text: "AI cuts out people, pets and products and removes everything behind them. Download a transparent PNG or put them on any colour.",
+      };
+
     case "create":
       return {
         eyebrow: "Pro feature",
@@ -74,6 +81,7 @@ export default function Paywall({
     `Up to ${account.proMaxImages} images per batch`,
     "AI file names and alt text",
     "Create images from a description",
+    "Remove image backgrounds",
     "AVIF, WEBP, JPEG and PNG output",
     "Pay by bank transfer, no card needed",
   ];

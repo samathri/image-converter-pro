@@ -79,6 +79,31 @@ export const Icon = {
       <path d="m21 15-4.5-4.5L6 21" />
     </svg>
   ),
+  zoomIn: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5M11 8v6M8 11h6" />
+    </svg>
+  ),
+  zoomOut: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="11" cy="11" r="7" />
+      <path d="m20 20-3.5-3.5M8 11h6" />
+    </svg>
+  ),
+  edit: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+    </svg>
+  ),
+  cutout: (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M4 10v4M20 10v4M10 4h4M10 20h4" />
+      <circle cx="12" cy="10" r="2.5" />
+      <path d="M7.5 17a4.5 4.5 0 0 1 9 0" />
+    </svg>
+  ),
   refresh: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M21 12a9 9 0 1 1-2.64-6.36L21 8" />

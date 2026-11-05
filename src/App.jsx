@@ -7,6 +7,7 @@ import ReferralModal from "./ReferralModal.jsx";
 import AccountMenu from "./AccountMenu.jsx";
 import NamesPage from "./NamesPage.jsx";
 import CreatePage from "./CreatePage.jsx";
+import RemoveBgPage from "./RemoveBgPage.jsx";
 import { useSession } from "./useSession.js";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
@@ -31,7 +32,7 @@ const PRESETS = [
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif";
 
 // The app has two pages: the converter (/) and Names & alt text (/names).
-const PAGES = { convert: "/", names: "/names", create: "/create" };
+const PAGES = { convert: "/", names: "/names", create: "/create", removebg: "/remove-background" };
 
 const pageFromPath = () => {
   const path = window.location.pathname.replace(/\/+$/, "");
@@ -233,6 +234,7 @@ export default function App() {
   // Names & alt text page state lives here so it survives switching pages.
   const [namesItems, setNamesItems] = useState([]);
   const [namesFields, setNamesFields] = useState(["name", "alt"]);
+  const [bgItems, setBgItems] = useState([]);
   // Create images page state, kept the same way.
   const [createItems, setCreateItems] = useState([]);
   const [createSettings, setCreateSettings] = useState({
@@ -812,6 +814,7 @@ export default function App() {
             ["convert", "Converter", Icon.aperture],
             ["names", "Names & alt text", Icon.sparkle],
             ["create", "Create images", Icon.image],
+            ["removebg", "Remove background", Icon.cutout],
           ].map(([id, label, icon]) => (
             <a
               key={id}
@@ -865,7 +868,15 @@ export default function App() {
         </div>
       </header>
 
-      {page === "create" ? (
+      {page === "removebg" ? (
+        <RemoveBgPage
+          items={bgItems}
+          setItems={setBgItems}
+          account={account}
+          onLocked={() => setPaywall("removebg")}
+          onSendToConverter={(images) => sendToConverter(images, "Added to the converter")}
+        />
+      ) : page === "create" ? (
         <CreatePage
           items={createItems}
           setItems={setCreateItems}
@@ -1233,7 +1244,9 @@ https://example.com/image3.webp`}
       )}
 
       <footer className="footer">
-        Images are processed on the server and never stored.
+        {page === "removebg"
+          ? "Backgrounds are removed in your browser. Your photos are never uploaded."
+          : "Images are processed on the server and never stored."}
       </footer>
 
       {paywall && account && (
