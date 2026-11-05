@@ -9,6 +9,8 @@ import NamesPage from "./NamesPage.jsx";
 import CreatePage from "./CreatePage.jsx";
 import RemoveBgPage from "./RemoveBgPage.jsx";
 import { useSession } from "./useSession.js";
+import { usePasteImages } from "./usePasteImages.js";
+import PasteLink from "./PasteLink.jsx";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
 
@@ -558,6 +560,11 @@ export default function App() {
     }
   };
 
+  // Ctrl+V on the converter page adds pasted images.
+  usePasteImages(addFiles, page === "convert");
+
+  const pasteMessage = (text) => setNotice({ type: "warn", title: "Nothing to paste", text });
+
   const removeFile = (id) => {
     const target = files.find((f) => f.id === id);
 
@@ -942,8 +949,9 @@ export default function App() {
                   : "Drop your images here"}
               </h2>
               <p>
-                JPG, PNG, WEBP or AVIF. Add as many as you like,
-                or <u>browse your computer</u>.
+                JPG, PNG, WEBP or AVIF. Add as many as you like:{" "}
+                <u>browse your computer</u>, drop them here, or{" "}
+                <PasteLink onFiles={addFiles} onMessage={pasteMessage} /> (Ctrl+V).
               </p>
             </div>
 

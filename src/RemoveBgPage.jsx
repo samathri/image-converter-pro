@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { makeZip } from "./zip.js";
 import ImageViewer from "./ImageViewer.jsx";
+import { usePasteImages } from "./usePasteImages.js";
+import PasteLink from "./PasteLink.jsx";
 
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif";
 
@@ -140,6 +142,8 @@ export default function RemoveBgPage({ items, setItems, account, onLocked, onSen
     }
   };
 
+  usePasteImages(addFiles);
+
   const removeItem = (id) => {
     const target = items.find((i) => i.id === id);
 
@@ -276,7 +280,8 @@ export default function RemoveBgPage({ items, setItems, account, onLocked, onSen
             <h2>{dragging ? "Let go to add them" : "Remove backgrounds"}</h2>
             <p>
               AI cuts out the subject and removes everything behind it. It runs in your browser, so your
-              photos are never uploaded. <u>Browse your computer</u> or drop images here.
+              photos are never uploaded. <u>Browse your computer</u>, drop images here, or{" "}
+              <PasteLink onFiles={addFiles} onMessage={setError} /> (Ctrl+V).
             </p>
           </div>
 

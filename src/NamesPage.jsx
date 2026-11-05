@@ -2,6 +2,8 @@ import { useRef, useState } from "react";
 import { Icon } from "./icons.jsx";
 import { fetchJson } from "./api.js";
 import { makeZip } from "./zip.js";
+import { usePasteImages } from "./usePasteImages.js";
+import PasteLink from "./PasteLink.jsx";
 
 const PREVIEW_SIZE = 768;
 const AT_ONCE = 2;
@@ -109,6 +111,8 @@ export default function NamesPage({ items, setItems, fields, setFields, account,
       setError("");
     }
   };
+
+  usePasteImages(addFiles);
 
   const removeItem = (id) => {
     const target = items.find((i) => i.id === id);
@@ -278,7 +282,8 @@ export default function NamesPage({ items, setItems, fields, setFields, account,
             <h2>{dragging ? "Let go to add them" : "Name your images"}</h2>
             <p>
               AI writes a clear file name and alt text for each photo. Download them renamed,
-              or convert them too. <u>Browse your computer</u> or drop images here.
+              or convert them too. <u>Browse your computer</u>, drop images here, or{" "}
+              <PasteLink onFiles={addFiles} onMessage={setError} /> (Ctrl+V).
             </p>
           </div>
 
