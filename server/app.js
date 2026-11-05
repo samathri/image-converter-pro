@@ -8,7 +8,7 @@ import path from "path";
 import { compressToTarget, downloadImage } from "./converter.js";
 import { identify, getAccount, reserveUse, PRO_MAX_IMAGES } from "./quota.js";
 import { clerkAuth, loadUser } from "./auth.js";
-import { aiEnabled, aiRouter } from "./ai.js";
+import { aiEnabled, aiRouter, imageFree, imageMode } from "./ai.js";
 import { billingRouter, adminRouter } from "./billing.js";
 import { payhereRouter, payhereNotifyRouter } from "./payhere.js";
 import { paypalRouter } from "./paypal.js";
@@ -74,6 +74,8 @@ app.get("/api/me", async (req, res, next) => {
       ...(await getAccount(req)),
       storage: usingBlob ? "blob" : "local",
       ai: aiEnabled(),
+      imageMode: imageMode(),
+      imageFree: imageFree(),
       uploadPrefix: uploadPrefix(req),
       receiptPrefix: receiptPrefix(req),
     });

@@ -1,6 +1,8 @@
-// Pro feature: names and alt text for images, written by Google Gemini.
+// Pro features: names and alt text for images (written by Google Gemini),
+// and creating images from a description (further down).
 // The browser sends a small JPEG preview of each image (not the original),
 // Gemini describes it, and nothing is stored.
+import crypto from "crypto";
 import express from "express";
 import { one } from "./db.js";
 import { isPro, requireUser } from "./auth.js";
@@ -147,6 +149,124 @@ aiRouter.post("/describe", requireUser, async (req, res, next) => {
     }
 
     res.json(await describeImage(match[2], match[1], fields));
+  } catch (error) {
+    next(error);
+  }
+});
+
+// ---------- Image generation (Pro) ----------
+// Pollinations.ai makes the images. Without a key, the free tier allows one
+// image every 45 seconds per IP. On Vercel every user shares the server's
+// IPs, so there the server hands the browser the image address and each
+// user's browser fetches its own image ("direct"). Pollinations only allows
+// that from a real website, not localhost, so local development fetches on
+// the server. With POLLINATIONS_API_KEY the server always fetches (no wait).
+
+const POLLINATIONS_KEY = process.env.POLLINATIONS_API_KEY || "";
+const IMAGE_DAILY_LIMIT = Number(process.env.IMAGE_DAILY_LIMIT) || 50;
+
+const STYLES = {
+  none: "",
+  photo: "professional photograph, natural light, sharp focus, high detail",
+  illustration: "digital illustration, clean lines, vibrant colours",
+  "3d": "3D render, soft studio lighting, octane render, high detail",
+  watercolor: "watercolor painting, soft washes, paper texture",
+  anime: "anime style, cel shading, detailed background",
+  flat: "flat vector illustration, simple shapes, minimal, solid colours",
+  pixel: "pixel art, 16-bit, crisp pixels",
+  sketch: "pencil sketch, hand-drawn, cross-hatching, monochrome",
+};
+
+const SHAPES = {
+  square: [1024, 1024],
+  landscape: [1216, 832],
+  portrait: [832, 1216],
+  wide: [1344, 768],
+};
+
+export const imageFree = () => !POLLINATIONS_KEY;
+
+// POLLINATIONS_MODE (direct/server) overrides the choice described above.
+export const imageMode = () =>
+  ["direct", "server"].includes(process.env.POLLINATIONS_MODE)
+    ? process.env.POLLINATIONS_MODE
+    : POLLINATIONS_KEY || !process.env.VERCEL
+      ? "server"
+      : "direct";
+
+async function overImageLimit(userId) {
+  const row = await one(
+    `INSERT INTO rate_limits (key, count, reset_at)
+     VALUES ($1, 1, date_trunc('day', now()) + interval '1 day')
+     ON CONFLICT (key) DO UPDATE SET
+       count = CASE WHEN rate_limits.reset_at < now() THEN 1 ELSE rate_limits.count + 1 END,
+       reset_at = CASE WHEN rate_limits.reset_at < now() THEN date_trunc('day', now()) + interval '1 day' ELSE rate_limits.reset_at END
+     RETURNING count`,
+    [`img:${userId}`]
+  );
+
+  return row.count > IMAGE_DAILY_LIMIT;
+}
+
+// Gives back a use when the free service asked us to wait (nothing was made).
+const refundImage = (userId) =>
+  one("UPDATE rate_limits SET count = GREATEST(0, count - 1) WHERE key = $1", [`img:${userId}`]);
+
+function imageUrl({ prompt, width, height, seed, enhance }) {
+  const params = new URLSearchParams({ width, height, seed, nologo: "true" });
+
+  if (enhance) params.set("enhance", "true");
+
+  return POLLINATIONS_KEY
+    ? `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}?${params}&model=flux`
+    : `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?${params}`;
+}
+
+aiRouter.post("/image", requireUser, async (req, res, next) => {
+  try {
+    if (!isPro(req.user)) throw httpError(402, "Creating images is a Pro feature.");
+
+    const prompt = String(req.body.prompt || "").replace(/\s+/g, " ").trim();
+    const style = STYLES[req.body.style] !== undefined ? req.body.style : "none";
+    const [width, height] = SHAPES[req.body.shape] || SHAPES.square;
+    const seed = Number.isInteger(req.body.seed) ? Math.abs(req.body.seed) % 1e9 : crypto.randomInt(1e9);
+
+    if (prompt.length < 3) throw httpError(400, "Describe the image you want (a few words at least).");
+    if (prompt.length > 600) throw httpError(400, "Keep the description under 600 characters.");
+
+    if (await overImageLimit(req.user.id)) {
+      throw httpError(429, `You've reached today's limit of ${IMAGE_DAILY_LIMIT} images. Try again tomorrow.`);
+    }
+
+    const fullPrompt = [prompt, STYLES[style]].filter(Boolean).join(", ");
+    const url = imageUrl({ prompt: fullPrompt, width, height, seed, enhance: Boolean(req.body.enhance) });
+
+    if (imageMode() === "direct") return res.json({ mode: "direct", url, seed, width, height });
+
+    const image = await fetch(url, {
+      headers: POLLINATIONS_KEY ? { Authorization: `Bearer ${POLLINATIONS_KEY}` } : {},
+      signal: AbortSignal.timeout(120_000),
+    });
+    const type = image.headers.get("content-type") || "";
+
+    // Free tier: "1 image every 45 seconds". Tell the browser how long to wait.
+    if (image.status === 402 || image.status === 429) {
+      const message = (await image.json().catch(() => ({})))?.error?.message || "";
+
+      await refundImage(req.user.id);
+      return res.status(429).json({
+        message: "The free image service needs a short break between images.",
+        retryAfter: Number(/(\d+)\s*s/.exec(message)?.[1]) || 45,
+      });
+    }
+
+    if (!image.ok || !type.startsWith("image/")) {
+      console.error("[ai] Pollinations error:", image.status, (await image.text().catch(() => "")).slice(0, 300));
+      throw httpError(image.status === 429 ? 429 : 502, "Couldn't create the image right now. Please try again.");
+    }
+
+    res.set({ "Content-Type": type, "X-Image-Seed": String(seed), "Cache-Control": "no-store" });
+    res.send(Buffer.from(await image.arrayBuffer()));
   } catch (error) {
     next(error);
   }

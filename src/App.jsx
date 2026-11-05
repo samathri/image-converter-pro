@@ -6,6 +6,7 @@ import BillingModal from "./BillingModal.jsx";
 import ReferralModal from "./ReferralModal.jsx";
 import AccountMenu from "./AccountMenu.jsx";
 import NamesPage from "./NamesPage.jsx";
+import CreatePage from "./CreatePage.jsx";
 import { useSession } from "./useSession.js";
 import { downloadFile, fetchJson, formatDate, uploadFile } from "./api.js";
 import "./Account.css";
@@ -30,9 +31,13 @@ const PRESETS = [
 const ACCEPT = ".jpg,.jpeg,.png,.webp,.avif";
 
 // The app has two pages: the converter (/) and Names & alt text (/names).
-const PAGES = { convert: "/", names: "/names" };
+const PAGES = { convert: "/", names: "/names", create: "/create" };
 
-const pageFromPath = () => (window.location.pathname.replace(/\/+$/, "") === "/names" ? "names" : "convert");
+const pageFromPath = () => {
+  const path = window.location.pathname.replace(/\/+$/, "");
+
+  return Object.keys(PAGES).find((id) => id !== "convert" && PAGES[id] === path) || "convert";
+};
 
 // What to do once someone finishes signing in (kept across Google's redirect).
 const AUTH_INTENT = "icp-auth-intent";
@@ -228,6 +233,15 @@ export default function App() {
   // Names & alt text page state lives here so it survives switching pages.
   const [namesItems, setNamesItems] = useState([]);
   const [namesFields, setNamesFields] = useState(["name", "alt"]);
+  // Create images page state, kept the same way.
+  const [createItems, setCreateItems] = useState([]);
+  const [createSettings, setCreateSettings] = useState({
+    prompt: "",
+    style: "photo",
+    shape: "square",
+    count: 1,
+    enhance: false,
+  });
   const { authLoaded, userId, clerk } = useSession();
   const [billingOpen, setBillingOpen] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -478,7 +492,7 @@ export default function App() {
 
   // From the Names page: the renamed images (with alt text) go to the converter.
   // Images that came from the converter replace their originals there.
-  const sendToConverter = (renamed) => {
+  const sendToConverter = (renamed, title = "New names are in") => {
     setFiles((current) => {
       const next = [...current];
 
@@ -500,7 +514,7 @@ export default function App() {
     goTo("convert");
     setNotice({
       type: "success",
-      title: "New names are in",
+      title,
       text: `${renamed.length} image${renamed.length === 1 ? "" : "s"} ready. Pick a format and size, then develop.`,
     });
   };
@@ -512,6 +526,15 @@ export default function App() {
       ...files
         .filter((f) => !current.some((item) => item.sourceId === f.id))
         .map((f) => ({ id: `c${f.id}`, sourceId: f.id, file: f.file, preview: URL.createObjectURL(f.file) })),
+    ]);
+    goTo("names");
+  };
+
+  // From the Create page: new images go to the Names page.
+  const createdToNames = (newFiles) => {
+    setNamesItems((current) => [
+      ...current,
+      ...newFiles.map((file) => ({ id: `g${nextId++}`, file, preview: URL.createObjectURL(file) })),
     ]);
     goTo("names");
   };
@@ -788,6 +811,7 @@ export default function App() {
           {[
             ["convert", "Converter", Icon.aperture],
             ["names", "Names & alt text", Icon.sparkle],
+            ["create", "Create images", Icon.image],
           ].map(([id, label, icon]) => (
             <a
               key={id}
@@ -802,7 +826,7 @@ export default function App() {
             >
               {icon}
               <span>{label}</span>
-              {id === "names" && <em className="pro-tag">Pro</em>}
+              {id !== "convert" && <em className="pro-tag">Pro</em>}
             </a>
           ))}
         </nav>
@@ -841,7 +865,18 @@ export default function App() {
         </div>
       </header>
 
-      {page === "names" ? (
+      {page === "create" ? (
+        <CreatePage
+          items={createItems}
+          setItems={setCreateItems}
+          settings={createSettings}
+          setSettings={setCreateSettings}
+          account={account}
+          onLocked={() => setPaywall("create")}
+          onSendToConverter={(images) => sendToConverter(images, "Added to the converter")}
+          onSendToNames={createdToNames}
+        />
+      ) : page === "names" ? (
         <NamesPage
           items={namesItems}
           setItems={setNamesItems}

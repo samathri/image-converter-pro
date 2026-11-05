@@ -15,7 +15,8 @@ async function authHeader() {
   }
 }
 
-export async function fetchJson(url, options = {}) {
+/** fetch() for our API: adds the sign-in token and encodes `json`. */
+export async function apiFetch(url, options = {}) {
   const init = { ...options, headers: { ...(await authHeader()), ...options.headers } };
 
   if (init.json !== undefined) {
@@ -24,7 +25,11 @@ export async function fetchJson(url, options = {}) {
     delete init.json;
   }
 
-  const response = await fetch(url, init);
+  return fetch(url, init);
+}
+
+export async function fetchJson(url, options = {}) {
+  const response = await apiFetch(url, options);
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {

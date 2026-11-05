@@ -12,6 +12,7 @@ A university portfolio project: free tier with limits, user accounts, a Pro plan
   - **PayPal (sandbox):** the buyer pays on PayPal (PayPal balance or card); when they return, the server captures the payment and Pro unlocks immediately.
   - **PayHere (optional):** supported too, but PayHere only approves root domains, so it needs your own domain rather than `*.vercel.app`.
   - **Bank transfer:** the user uploads the receipt and an admin approves or rejects it.
+- **Create images (Pro), at `/create`:** describe an image or type keywords (with one-click keyword chips), pick a style (photo, illustration, 3D, watercolor, anime, flat vector, sketch), a shape and 1–4 images. Each result can be downloaded, sent to the converter, or sent to Names & alt text, and "Variation" makes another version. Made with [Pollinations.ai](https://pollinations.ai).
 - **Names & alt text (Pro), on its own page (`/names`):** Google Gemini looks at each photo and writes an SEO-friendly file name, alt text, or both. Everyone can open the page; generating needs Pro. Results can be edited, copied or exported as CSV, then either downloaded as the **original images renamed** (a zip, no conversion) or **sent to the converter** to convert and compress under the new names (that zip includes `alt-text.csv`). The converter's "Name with AI" button goes the other way.
 - **Accounts:** sign-in by [Clerk](https://clerk.com): email with a verification code, Google, and "Forgot password", all in Clerk's sign-in window. Users also manage their profile there (Account settings).
 - **Offers:** longer-plan discounts (% off 3, 6 and 12-month plans, shown as "Save X%"; other discounts apply on top), timed sale campaigns (with a banner), promo codes (% or amount off, expiry, usage limits; 100% codes give Pro free) and a referral programme (users who have bought Pro get an invite link; every 5 friends who join give them 5% off their next payment, both numbers set by the admin).
@@ -86,6 +87,12 @@ Accounts from before Clerk are kept: signing in with the same email links to the
 2. Add it as `GEMINI_API_KEY` (mark it **Sensitive**) and redeploy.
 
 The free tier has per-minute and per-day limits, so each user can describe up to 200 images a day (`AI_DAILY_LIMIT`). Only a small preview (768 px JPEG) is sent, and nothing is stored. On the free tier Google may use the data to improve its models.
+
+### Create images (Pollinations)
+
+Nothing to set up: without a key the app uses Pollinations' free tier, which allows **one image every 45 seconds per IP address** and adds a small watermark. On Vercel each user's browser fetches its own image, so every user gets their own allowance (the page counts down between images). Locally the server fetches the images, because Pollinations only accepts browser requests from a real website.
+
+For no waiting and no watermark, create a key at [enter.pollinations.ai](https://enter.pollinations.ai) and add it as `POLLINATIONS_API_KEY` (mark it **Sensitive**); the server then fetches every image. Each user can create up to 50 images a day (`IMAGE_DAILY_LIMIT`). `POLLINATIONS_MODE` (`direct` or `server`) overrides where images are fetched.
 
 ### Email (Pro expiry reminders)
 

@@ -28,6 +28,13 @@ function getCopy(reason, account, imageCount) {
         text: `Free rolls hold ${account.maxImages} images. Go Pro to develop up to ${account.proMaxImages} at once.`,
       };
 
+    case "create":
+      return {
+        eyebrow: "Pro feature",
+        title: "Create images from a few words",
+        text: "Describe what you need, pick a style and shape, and Pro creates the images for you to download, convert or name.",
+      };
+
     case "ai":
       return {
         eyebrow: "Pro feature",
@@ -66,6 +73,7 @@ export default function Paywall({
     "Unlimited conversions",
     `Up to ${account.proMaxImages} images per batch`,
     "AI file names and alt text",
+    "Create images from a description",
     "AVIF, WEBP, JPEG and PNG output",
     "Pay by bank transfer, no card needed",
   ];
