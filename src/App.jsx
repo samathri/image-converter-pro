@@ -274,6 +274,7 @@ export default function App() {
     }
   }, [theme]);
 
+
   // Retries a few times, so a slow start (or a blip) doesn't leave the page without an account.
   const refreshAccount = useCallback(async () => {
     for (let attempt = 0; attempt < 4; attempt++) {
@@ -818,11 +819,11 @@ export default function App() {
 
         <nav className="page-tabs" aria-label="Pages">
           {[
-            ["convert", "Converter", Icon.aperture],
-            ["names", "Names & alt text", Icon.sparkle],
-            ["create", "Create images", Icon.image],
-            ["removebg", "Remove background", Icon.cutout],
-          ].map(([id, label, icon]) => (
+            ["convert", "Converter", Icon.aperture, "Convert"],
+            ["names", "Names & alt text", Icon.sparkle, "Names"],
+            ["create", "Create images", Icon.image, "Create"],
+            ["removebg", "Remove background", Icon.cutout, "Cut out"],
+          ].map(([id, label, icon, short]) => (
             <a
               key={id}
               href={PAGES[id]}
@@ -835,7 +836,8 @@ export default function App() {
               }}
             >
               {icon}
-              <span>{label}</span>
+              <span className="tab-label">{label}</span>
+              <span className="tab-short">{short}</span>
               {id !== "convert" && <em className="pro-tag">Pro</em>}
             </a>
           ))}
@@ -946,7 +948,9 @@ export default function App() {
               <h2>
                 {dragging
                   ? "Let go to add them"
-                  : "Drop your images here"}
+                  : files.length
+                    ? "Add more images"
+                    : "Drop your images here"}
               </h2>
               <p>
                 JPG, PNG, WEBP or AVIF. Add as many as you like:{" "}
@@ -956,22 +960,20 @@ export default function App() {
             </div>
 
             <div className="drop-stack" aria-hidden="true">
-              {stack.length === 0 ? (
-                <div className="drop-empty">{Icon.upload}</div>
-              ) : (
-                stack.map((f, i) => (
-                  <div
-                    key={f.id}
-                    className="stack-print"
-                    style={{
-                      "--r": `${(i - (stack.length - 1) / 2) * 9}deg`,
-                      "--x": `${(i - (stack.length - 1) / 2) * 34}px`,
-                    }}
-                  >
-                    <img src={f.preview} alt="" />
-                  </div>
-                ))
-              )}
+              {/* Phones always show the upload icon; larger screens show the photo stack. */}
+              <div className={`drop-empty ${stack.length ? "has-stack" : ""}`}>{Icon.upload}</div>
+              {stack.map((f, i) => (
+                <div
+                  key={f.id}
+                  className="stack-print"
+                  style={{
+                    "--r": `${(i - (stack.length - 1) / 2) * 9}deg`,
+                    "--x": `${(i - (stack.length - 1) / 2) * 34}px`,
+                  }}
+                >
+                  <img src={f.preview} alt="" />
+                </div>
+              ))}
             </div>
           </div>
 

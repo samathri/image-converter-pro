@@ -300,6 +300,10 @@
   50% { transform: translateY(-8px); }
 }
 
+.drop-empty.has-stack {
+  display: none;
+}
+
 .stack-print {
   position: absolute;
   width: 140px;
@@ -1384,6 +1388,25 @@ button.roll-meter:hover {
   .panel {
     padding: 20px;
   }
+
+  /* Phones: keep the upload icon instead of the photo stack. */
+  .stack-print {
+    display: none;
+  }
+
+  .drop-empty.has-stack {
+    display: grid;
+  }
+
+  /* Panel buttons move under the title instead of squeezing it. */
+  .panel-head {
+    flex-wrap: wrap;
+    row-gap: 10px;
+  }
+
+  .panel-head > div {
+    flex-basis: calc(100% - 60px);
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1461,6 +1484,158 @@ button.roll-meter:hover {
   .page-tabs a {
     flex: 1;
     justify-content: center;
+  }
+}
+
+.page-tabs .tab-short {
+  display: none;
+}
+
+/* Tablets: tighter tabs so all four fit on one row. */
+@media (max-width: 1100px) {
+  .page-tabs a {
+    flex: 1 1 auto;
+    min-width: 0;
+    gap: 6px;
+    padding: 9px 8px;
+    font-size: 13px;
+  }
+
+  .page-tabs .pro-tag {
+    padding: 1px 5px;
+    font-size: 9px;
+  }
+
+  .brand p {
+    display: none;
+  }
+}
+
+@media (max-width: 420px) {
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 34px;
+    height: 34px;
+  }
+
+  .brand h1 {
+    font-size: 15px;
+  }
+
+  .topbar-actions {
+    gap: 4px;
+  }
+
+  .topbar-actions .roll-meter,
+  .topbar-actions .signin-btn,
+  .topbar-actions .icon-btn {
+    height: 38px;
+  }
+
+  .topbar-actions .signin-btn,
+  .topbar-actions .icon-btn {
+    width: 38px;
+  }
+}
+
+/* Phones: the page tabs become an app-style bar fixed to the bottom. */
+@media (max-width: 760px) {
+  .topbar {
+    gap: 14px 8px;
+  }
+
+  /* Logo and buttons share the first row; the tabs get the second. */
+  .brand {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .brand > div {
+    min-width: 0;
+  }
+
+  .brand h1 {
+    line-height: 1.15;
+  }
+
+  .topbar-actions {
+    flex: none;
+  }
+
+  .app {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .page-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 50;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0;
+    width: auto;
+    padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+    border-radius: 0;
+    border-width: 1px 0 0;
+    background: color-mix(in srgb, var(--surface) 88%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .page-tabs a {
+    position: relative;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px 2px 7px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .page-tabs a.is-active {
+    background: transparent;
+    box-shadow: none;
+    color: var(--accent);
+  }
+
+  .page-tabs a.is-active::before {
+    content: "";
+    position: absolute;
+    top: -7px;
+    left: 30%;
+    right: 30%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--accent);
+  }
+
+  .page-tabs svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .page-tabs .tab-label {
+    display: none;
+  }
+
+  .page-tabs .tab-short {
+    display: block;
+  }
+
+  /* Pro shows as a small badge on the icon. */
+  .page-tabs .pro-tag {
+    position: absolute;
+    top: 2px;
+    left: calc(50% + 6px);
+    margin: 0;
+    padding: 1px 4px;
+    font-size: 7px;
+    line-height: 1.3;
   }
 }
 
