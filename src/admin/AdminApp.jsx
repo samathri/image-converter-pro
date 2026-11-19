@@ -515,14 +515,14 @@ Their account, payments and receipts are removed permanently. This can't be undo
 
   return (
     <tr>
-      <td>
+      <td className="user-cell">
         <strong>{user.name}</strong>
         <span>{user.email}</span>
         {user.isOwner && <em className="role-chip">owner</em>}
         {!user.isOwner && isAdminRow && <em className="role-chip">admin</em>}
         {user.isYou && <em className="role-chip is-you">you</em>}
       </td>
-      <td>
+      <td data-label="Plan">
         {isAdminRow ? (
           <span className="status-pill status-approved">Admin · unlimited</span>
         ) : user.proUntil ? (
@@ -533,14 +533,14 @@ Their account, payments and receipts are removed permanently. This can't be undo
           <span className="status-pill">Free</span>
         )}
       </td>
-      <td>
+      <td data-label="Expires">
         <ExpiryCell user={user} />
       </td>
-      <td className="mono">{user.payRef}</td>
-      <td>{user.freeUses}</td>
-      <td>{user.paidCount}</td>
-      <td>{formatDate(user.createdAt, SHORT_DATE)}</td>
-      <td>
+      <td data-label="Pay ref" className="mono">{user.payRef}</td>
+      <td data-label="Free uses">{user.freeUses}</td>
+      <td data-label="Payments">{user.paidCount}</td>
+      <td data-label="Joined">{formatDate(user.createdAt, SHORT_DATE)}</td>
+      <td data-label="Pro access">
         {isAdminRow ? (
           <span className="muted">Full access</span>
         ) : user.proUntil ? (
@@ -566,7 +566,7 @@ Their account, payments and receipts are removed permanently. This can't be undo
           </div>
         )}
       </td>
-      <td>
+      <td data-label="Account">
         {locked ? (
           <span className="muted">—</span>
         ) : (
@@ -1186,6 +1186,7 @@ export default function AdminApp() {
   const goTo = (id) => {
     setTab(id);
     history.replaceState(null, "", `#${id}`);
+    window.scrollTo(0, 0);
   };
 
   const signOut = () => clerk.signOut({ redirectUrl: "/admin" });

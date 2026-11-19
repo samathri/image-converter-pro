@@ -1014,6 +1014,7 @@ button.stat:hover {
 @media (max-width: 900px) {
   .admin {
     grid-template-columns: minmax(0, 1fr);
+    align-content: start;
   }
 
   .admin-nav {
@@ -1076,8 +1077,353 @@ button.stat:hover {
   }
 }
 
-@media (max-width: 560px) {
-  .admin-nav nav button span {
+/* Phones and small tablets: slim top bar, sections in a tab bar at the bottom. */
+@media (max-width: 900px) {
+  .admin-nav {
+    top: 0;
+    overflow: visible;
+  }
+
+  .admin-brand div {
+    display: block;
+  }
+
+  .admin-brand span {
     display: none;
+  }
+
+  .admin-brand .brand-mark {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+  }
+
+  .admin-brand strong {
+    font-size: 16px;
+    white-space: nowrap;
+  }
+
+  .admin-me {
+    gap: 14px;
+    font-size: 13px;
+  }
+
+  .admin-nav nav {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 0;
+    padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--border);
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+  }
+
+  .admin-nav nav button {
+    position: relative;
+    flex-direction: column;
+    justify-content: center;
+    gap: 4px;
+    min-width: 0;
+    padding: 7px 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+    text-align: center;
+  }
+
+  .admin-nav nav button span {
+    display: block;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .admin-nav nav button svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .admin-nav nav button:hover {
+    background: none;
+  }
+
+  .admin-nav nav button.is-active {
+    color: var(--accent);
+    background: none;
+    box-shadow: none;
+  }
+
+  .admin-nav nav button.is-active::before {
+    content: "";
+    position: absolute;
+    top: -7px;
+    left: 30%;
+    right: 30%;
+    height: 3px;
+    border-radius: 0 0 3px 3px;
+    background: var(--accent);
+  }
+
+  /* Pending-payments count sits on the icon. */
+  .admin-nav nav em {
+    position: absolute;
+    top: 0;
+    left: calc(50% + 4px);
+    min-width: 18px;
+    padding: 1px 5px;
+    font-size: 10px;
+  }
+
+  .admin-main {
+    padding: 20px 16px calc(96px + env(safe-area-inset-bottom));
+  }
+
+  .admin-header {
+    margin-bottom: 18px;
+  }
+
+  .admin-header h1 {
+    font-size: 28px;
+  }
+
+  /* Overview */
+  .stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .stat {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .stat:last-child:nth-child(odd) {
+    grid-column: 1 / -1;
+  }
+
+  .stat-icon {
+    width: 30px;
+    height: 30px;
+    margin-bottom: 4px;
+  }
+
+  .stat strong {
+    font-size: 24px;
+  }
+
+  .stat > span:last-child {
+    font-size: 12px;
+  }
+
+  .admin-callout {
+    flex-wrap: wrap;
+  }
+
+  .admin-callout p {
+    flex-basis: calc(100% - 32px);
+  }
+
+  .queue h2,
+  .promo-section h2 {
+    font-size: 19px;
+  }
+
+  .queue header {
+    gap: 12px;
+  }
+
+  .queue header .btn-ghost {
+    flex: none;
+    white-space: nowrap;
+  }
+
+  .queue li {
+    flex-wrap: wrap;
+    gap: 10px 12px;
+    padding: 12px 14px;
+  }
+
+  .queue li > div {
+    flex-basis: calc(100% - 50px);
+  }
+
+  .queue-amount {
+    margin-left: 50px;
+    font-size: 16px;
+  }
+
+  .queue li .btn-small {
+    margin-left: auto;
+  }
+
+  .queue li .expiry {
+    margin-left: 50px;
+  }
+
+  /* Payments */
+  .segmented-tabs {
+    display: flex;
+    width: 100%;
+  }
+
+  .segmented-tabs button {
+    flex: 1;
+    padding: 8px 4px;
+  }
+
+  .payment-card {
+    gap: 14px;
+    padding: 14px;
+  }
+
+  .receipt-thumb {
+    height: 140px;
+  }
+
+  .payment-main header {
+    flex-wrap: wrap;
+  }
+
+  .payment-actions > * {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .payment-actions .reason-input {
+    flex-basis: 100%;
+  }
+
+  /* Users: each row becomes a card. */
+  .search {
+    width: 100%;
+  }
+
+  .table-wrap {
+    overflow: visible;
+    border: none;
+    background: none;
+  }
+
+  .users-table,
+  .users-table tbody {
+    display: block;
+  }
+
+  .users-table thead {
+    display: none;
+  }
+
+  .users-table tr {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    margin-bottom: 12px;
+    padding: 14px;
+    border-radius: 18px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+  }
+
+  .users-table td {
+    display: grid;
+    gap: 3px;
+    align-content: start;
+    min-width: 0;
+    padding: 0;
+    border: none;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .users-table td::before {
+    content: attr(data-label);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .users-table td.user-cell {
+    grid-column: 1 / -1;
+    display: block;
+    padding-bottom: 10px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .users-table td.user-cell::before {
+    content: none;
+  }
+
+  .users-table td[data-label="Pro access"],
+  .users-table td[data-label="Account"] {
+    grid-column: 1 / -1;
+  }
+
+  .users-table .row-actions > * {
+    flex: 1;
+  }
+
+  .users-table .status-pill {
+    justify-self: start;
+  }
+
+  /* Promotions and settings */
+  .promo-admin-form,
+  .promo-list,
+  .settings-form section {
+    padding: 14px;
+    border-radius: 16px;
+  }
+
+  .plan-discount-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .promo-item {
+    flex-wrap: wrap;
+  }
+
+  .promo-item > div:first-child {
+    flex-basis: calc(100% - 90px);
+  }
+
+  .promo-item .row-actions {
+    width: 100%;
+  }
+
+  .promo-item .row-actions > * {
+    flex: 1;
+  }
+
+  .settings-form .btn-primary,
+  .promo-admin-form .btn-primary {
+    width: 100%;
+  }
+}
+
+@media (min-width: 561px) and (max-width: 900px) {
+  .users-table tr {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .users-table td[data-label="Pro access"],
+  .users-table td[data-label="Account"] {
+    grid-column: span 2;
+  }
+}
+
+@media (max-width: 360px) {
+  .admin-brand div {
+    display: none;
+  }
+
+  .admin-nav nav button {
+    font-size: 10px;
   }
 }
